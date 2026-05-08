@@ -42,6 +42,19 @@ jobs:
         shell: bash
         run: cd Server && go build -o chatserver.exe -ldflags "-s -w -X main.version=$VERSION" .
 
+      - name: Download LiveKit server
+        shell: pwsh
+        env:
+          LIVEKIT_VERSION: "1.11.0"
+        run: |
+          $ver = $env:LIVEKIT_VERSION
+          $url = "https://github.com/livekit/livekit/releases/download/v$ver/livekit_${ver}_windows_amd64.zip"
+          Invoke-WebRequest -Uri $url -OutFile livekit.zip
+          Expand-Archive -Path livekit.zip -DestinationPath livekit-extract -Force
+          $exe = Get-ChildItem -Path livekit-extract -Filter livekit-server.exe -Recurse | Select-Object -First 1
+          if (-not $exe) { throw "livekit-server.exe not found in archive" }
+          Copy-Item $exe.FullName -Destination livekit-server.exe -Force
+
       - name: Install npm dependencies
         working-directory: Client/tauri-client
         run: npm ci
@@ -73,6 +86,8 @@ jobs:
           $lines = @()
           $serverHash = (Get-FileHash -Path Server/chatserver.exe -Algorithm SHA256).Hash.ToLower()
           $lines += "$serverHash  chatserver.exe"
+          $livekitHash = (Get-FileHash -Path livekit-server.exe -Algorithm SHA256).Hash.ToLower()
+          $lines += "$livekitHash  livekit-server.exe"
           $installerPath = "${{ steps.artifacts.outputs.installer_path }}"
           $installerName = "${{ steps.artifacts.outputs.installer_name }}"
           $clientHash = (Get-FileHash -Path $installerPath -Algorithm SHA256).Hash.ToLower()
@@ -92,6 +107,7 @@ jobs:
         run: |
           ASSETS=(
             Server/chatserver.exe
+            livekit-server.exe
             "${{ steps.artifacts.outputs.installer_path }}"
             checksums.sha256
           )
