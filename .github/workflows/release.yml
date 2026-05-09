@@ -38,11 +38,19 @@ jobs:
           VERSION="${GITHUB_REF_NAME#v}"
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
 
-      - name: Build server
+      - name: Build server (Windows)
         shell: bash
         run: cd Server && go build -o chatserver.exe -ldflags "-s -w -X main.version=$VERSION" .
 
-      - name: Download LiveKit server
+      - name: Build server (Linux amd64)
+        shell: bash
+        env:
+          GOOS: linux
+          GOARCH: amd64
+          CGO_ENABLED: "0"
+        run: cd Server && go build -o ../chatserver-linux-amd64 -ldflags "-s -w -X main.version=$VERSION" .
+
+      - name: Download LiveKit server (Windows)
         shell: pwsh
         env:
           LIVEKIT_VERSION: "1.11.0"
@@ -54,6 +62,20 @@ jobs:
           $exe = Get-ChildItem -Path livekit-extract -Filter livekit-server.exe -Recurse | Select-Object -First 1
           if (-not $exe) { throw "livekit-server.exe not found in archive" }
           Copy-Item $exe.FullName -Destination livekit-server.exe -Force
+
+      - name: Download LiveKit server (Linux amd64)
+        shell: pwsh
+        env:
+          LIVEKIT_VERSION: "1.11.0"
+        run: |
+          $ver = $env:LIVEKIT_VERSION
+          $url = "https://github.com/livekit/livekit/releases/download/v$ver/livekit_${ver}_linux_amd64.tar.gz"
+          Invoke-WebRequest -Uri $url -OutFile livekit-linux.tar.gz
+          New-Item -ItemType Directory -Path livekit-linux-extract -Force | Out-Null
+          tar -xzf livekit-linux.tar.gz -C livekit-linux-extract
+          $bin = Get-ChildItem -Path livekit-linux-extract -Filter livekit-server -Recurse | Where-Object { -not $_.PSIsContainer } | Select-Object -First 1
+          if (-not $bin) { throw "livekit-server (linux) not found in archive" }
+          Copy-Item $bin.FullName -Destination livekit-server-linux-amd64 -Force
 
       - name: Install npm dependencies
         working-directory: Client/tauri-client
@@ -88,6 +110,10 @@ jobs:
           $lines += "$serverHash  chatserver.exe"
           $livekitHash = (Get-FileHash -Path livekit-server.exe -Algorithm SHA256).Hash.ToLower()
           $lines += "$livekitHash  livekit-server.exe"
+          $serverLinuxHash = (Get-FileHash -Path chatserver-linux-amd64 -Algorithm SHA256).Hash.ToLower()
+          $lines += "$serverLinuxHash  chatserver-linux-amd64"
+          $livekitLinuxHash = (Get-FileHash -Path livekit-server-linux-amd64 -Algorithm SHA256).Hash.ToLower()
+          $lines += "$livekitLinuxHash  livekit-server-linux-amd64"
           $installerPath = "${{ steps.artifacts.outputs.installer_path }}"
           $installerName = "${{ steps.artifacts.outputs.installer_name }}"
           $clientHash = (Get-FileHash -Path $installerPath -Algorithm SHA256).Hash.ToLower()
@@ -108,6 +134,8 @@ jobs:
           ASSETS=(
             Server/chatserver.exe
             livekit-server.exe
+            chatserver-linux-amd64
+            livekit-server-linux-amd64
             "${{ steps.artifacts.outputs.installer_path }}"
             checksums.sha256
           )
