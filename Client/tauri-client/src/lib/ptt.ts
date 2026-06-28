@@ -28,6 +28,7 @@ let webDown: ((e: KeyboardEvent) => void) | null = null;
 let webUp: ((e: KeyboardEvent) => void) | null = null;
 
 function webInit(): void {
+  if (webDown || webUp) return; // already initialised — avoid leaking listeners
   webDown = (e: KeyboardEvent) => {
     if (e.code !== webKeyCode) return;
     if (voiceStore.getState().currentChannelId === null) return;

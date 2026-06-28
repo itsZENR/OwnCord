@@ -21,4 +21,20 @@ describe("ptt (web path)", () => {
     expect(setMuted).toHaveBeenLastCalledWith(true);
     await stopPtt();
   });
+
+  it("is idempotent — calling initPtt twice registers only one listener pair", async () => {
+    await updatePttKey(0x41); // 'A' -> KeyA
+    await initPtt();
+    await initPtt(); // second call — must be a no-op due to guard
+
+    window.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyA" }));
+    expect(setMuted).toHaveBeenCalledTimes(1);
+    expect(setMuted).toHaveBeenCalledWith(false);
+
+    // Verify teardown removes the single registered pair
+    await stopPtt();
+    vi.clearAllMocks();
+    window.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyA" }));
+    expect(setMuted).not.toHaveBeenCalled();
+  });
 });
