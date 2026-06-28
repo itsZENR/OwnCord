@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -p tsconfig.build.json && vite build",
+    "build:web": "cross-env OWNCORD_TARGET=web tsc -p tsconfig.build.json && cross-env OWNCORD_TARGET=web vite build",
     "preview": "vite preview",
     "tauri": "tauri",
     "test": "vitest run",
@@ -27,6 +28,7 @@
     "@playwright/test": "^1",
     "@tauri-apps/cli": "^2",
     "@vitest/coverage-v8": "^3",
+    "cross-env": "^10.1.0",
     "eslint": "^9.39.4",
     "jsdom": "^29.0.0",
     "typescript": "^5.7",

@@ -7,7 +7,7 @@ import { getLogBuffer, clearLogBuffer, addLogListener, setLogLevel } from "@lib/
 import type { LogEntry, LogLevel } from "@lib/logger";
 import type { TabName } from "../SettingsOverlay";
 import { getSessionDebugInfo } from "@lib/livekitSession";
-import { loadPref, savePref } from "./helpers";
+import { savePref } from "./helpers";
 import { isTauri, getAppVersion } from "../../lib/platform";
 
 // ---------------------------------------------------------------------------

@@ -1,7 +1,10 @@
 import { defineConfig, type Plugin } from "vite";
 import { resolve } from "path";
+import { readFileSync } from "fs";
 
 const host = process.env.TAURI_DEV_HOST;
+const isWeb = process.env.OWNCORD_TARGET === "web";
+const pkg = JSON.parse(readFileSync(resolve(__dirname, "package.json"), "utf-8")) as { version: string };
 
 /** Strip crossorigin attributes — Tauri serves via custom protocol. */
 function stripCrossOrigin(): Plugin {
@@ -15,7 +18,12 @@ function stripCrossOrigin(): Plugin {
 
 export default defineConfig({
   plugins: [stripCrossOrigin()],
+  define: {
+    __APP_VERSION__: JSON.stringify(pkg.version),
+  },
+  base: "/",
   build: {
+    outDir: isWeb ? "dist-web" : "dist",
     modulePreload: { polyfill: false },
     cssCodeSplit: false,
   },
