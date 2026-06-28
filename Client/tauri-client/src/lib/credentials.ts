@@ -4,6 +4,7 @@
  */
 
 import { createLogger } from "./logger";
+import { isTauri } from "./platform/index";
 
 const log = createLogger("credentials");
 
@@ -12,6 +13,8 @@ export interface SavedCredential {
   readonly token: string;
   readonly password?: string;
 }
+
+const webKey = (host: string) => `owncord:cred:${host}`;
 
 /** Dynamically import Tauri invoke to avoid errors in test/browser. */
 async function getInvoke(): Promise<
@@ -35,6 +38,16 @@ export async function saveCredential(
   token: string,
   password?: string,
 ): Promise<boolean> {
+  if (!isTauri()) {
+    // Web: persist username + token only (no password auto-login in a browser).
+    // localStorage is weaker than the desktop OS store; token is revocable.
+    try {
+      localStorage.setItem(webKey(host), JSON.stringify({ username, token }));
+      return true;
+    } catch {
+      return false;
+    }
+  }
   const invoke = await getInvoke();
   if (!invoke) {
     log.warn("Tauri not available — credential not saved");
@@ -56,6 +69,19 @@ export async function saveCredential(
 export async function loadCredential(
   host: string,
 ): Promise<SavedCredential | null> {
+  if (!isTauri()) {
+    try {
+      const raw = localStorage.getItem(webKey(host));
+      if (!raw) return null;
+      const o = JSON.parse(raw) as Record<string, unknown>;
+      if (typeof o.username === "string" && typeof o.token === "string") {
+        return { username: o.username, token: o.token };
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
   const invoke = await getInvoke();
   if (!invoke) {
     return null;
@@ -83,6 +109,14 @@ export async function loadCredential(
  * Delete a credential from Windows Credential Manager.
  */
 export async function deleteCredential(host: string): Promise<boolean> {
+  if (!isTauri()) {
+    try {
+      localStorage.removeItem(webKey(host));
+      return true;
+    } catch {
+      return false;
+    }
+  }
   const invoke = await getInvoke();
   if (!invoke) {
     return false;
