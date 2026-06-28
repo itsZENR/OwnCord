@@ -60,6 +60,10 @@ vi.mock("../../src/lib/livekitSession", () => ({
   setMuted: vi.fn(),
 }));
 
+// Keep ptt.test.ts on the Tauri path — isTauri() must return true so existing
+// invoke/listen assertions are not broken by the new web branch.
+vi.mock("../../src/lib/platform/index", () => ({ isTauri: () => true }));
+
 // ---------------------------------------------------------------------------
 // Import module under test (AFTER mocks)
 // ---------------------------------------------------------------------------

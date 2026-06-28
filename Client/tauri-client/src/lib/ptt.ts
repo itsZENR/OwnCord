@@ -8,10 +8,39 @@ import { loadPref, savePref } from "@components/settings/helpers";
 import { voiceStore } from "@stores/voice.store";
 import { setMuted } from "./livekitSession";
 import { createLogger } from "./logger";
+import { isTauri } from "./platform/index";
 
 const log = createLogger("ptt");
 
 let listening = false;
+
+// Minimal VK -> KeyboardEvent.code map for common PTT keys. Extend as needed.
+const VK_TO_CODE: Record<number, string> = {
+  0x41: "KeyA", 0x42: "KeyB", 0x43: "KeyC", 0x44: "KeyD", 0x45: "KeyE",
+  0x46: "KeyF", 0x47: "KeyG", 0x56: "KeyV", 0x58: "KeyX", 0x5A: "KeyZ",
+  0x20: "Space", 0x11: "ControlLeft", 0x10: "ShiftLeft", 0x12: "AltLeft",
+};
+
+// Web PTT only fires while the browser tab has focus (no OS-global hook).
+// This is an intentional degradation for the browser build vs. the desktop build.
+let webKeyCode = "KeyV";
+let webDown: ((e: KeyboardEvent) => void) | null = null;
+let webUp: ((e: KeyboardEvent) => void) | null = null;
+
+function webInit(): void {
+  webDown = (e: KeyboardEvent) => {
+    if (e.code !== webKeyCode) return;
+    if (voiceStore.getState().currentChannelId === null) return;
+    setMuted(false);
+  };
+  webUp = (e: KeyboardEvent) => {
+    if (e.code !== webKeyCode) return;
+    if (voiceStore.getState().currentChannelId === null) return;
+    setMuted(true);
+  };
+  window.addEventListener("keydown", webDown);
+  window.addEventListener("keyup", webUp);
+}
 
 // Well-known virtual key code names for display
 const VK_NAMES: ReadonlyMap<number, string> = new Map([
@@ -45,6 +74,7 @@ export function vkName(vk: number): string {
 
 /** Start listening for PTT state changes from the Rust backend. */
 export async function initPtt(): Promise<void> {
+  if (!isTauri()) { webInit(); return; }
   const vk = loadPref<number>("pttVk", 0);
   if (vk === 0) return;
 
@@ -76,6 +106,12 @@ export async function initPtt(): Promise<void> {
 
 /** Stop PTT polling. */
 export async function stopPtt(): Promise<void> {
+  if (!isTauri()) {
+    if (webDown) window.removeEventListener("keydown", webDown);
+    if (webUp) window.removeEventListener("keyup", webUp);
+    webDown = webUp = null;
+    return;
+  }
   if (!listening) return;
   try {
     const { invoke } = await import("@tauri-apps/api/core");
@@ -89,6 +125,7 @@ export async function stopPtt(): Promise<void> {
 
 /** Update the PTT key and restart polling. */
 export async function updatePttKey(vk: number): Promise<void> {
+  if (!isTauri()) { webKeyCode = VK_TO_CODE[vk] ?? "KeyV"; return; }
   savePref("pttVk", vk);
   try {
     const { invoke } = await import("@tauri-apps/api/core");
@@ -107,6 +144,17 @@ export async function updatePttKey(vk: number): Promise<void> {
 
 /** Use Rust-side polling to capture the next key press (for the binding UI). */
 export async function captureKeyPress(): Promise<number> {
+  if (!isTauri()) {
+    // Web: resolve the next keydown to a VK code via reverse lookup.
+    return new Promise<number>((resolve) => {
+      const onKey = (e: KeyboardEvent) => {
+        window.removeEventListener("keydown", onKey);
+        const vk = Number(Object.keys(VK_TO_CODE).find((k) => VK_TO_CODE[Number(k)] === e.code)) || 0x56;
+        resolve(vk);
+      };
+      window.addEventListener("keydown", onKey);
+    });
+  }
   const { invoke } = await import("@tauri-apps/api/core");
   return invoke<number>("ptt_listen_for_key");
 }
