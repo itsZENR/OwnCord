@@ -51,10 +51,16 @@ const log = createLogger("livekitSession");
  *   3. Relative path — prefixed with `wss://{serverHost}`.
  */
 export function resolveLiveKitUrlWeb(serverHost: string, proxyPath: string, directUrl?: string): string {
-  if (directUrl) return directUrl;
-  if (proxyPath.startsWith("ws://") || proxyPath.startsWith("wss://")) return proxyPath;
-  const host = serverHost.split(":")[0] ?? serverHost;
-  return `wss://${host}${proxyPath.startsWith("/") ? proxyPath : `/${proxyPath}`}`;
+  // Only honor an explicit *secure* absolute URL (e.g. an external LiveKit
+  // deployment reachable from the browser). The server sends
+  // direct_url=ws://localhost:7880 for its co-located LiveKit — a browser
+  // cannot reach the server's localhost, and an insecure ws:// URL is blocked
+  // by the page's CSP on https. So ignore it and route through the
+  // server-side /livekit reverse proxy over wss, on the same host:port the
+  // client is already connected to (port preserved).
+  if (directUrl !== undefined && directUrl.startsWith("wss://")) return directUrl;
+  if (proxyPath.startsWith("wss://")) return proxyPath;
+  return `wss://${serverHost}${proxyPath.startsWith("/") ? proxyPath : `/${proxyPath}`}`;
 }
 
 // --- Stream quality presets ---
