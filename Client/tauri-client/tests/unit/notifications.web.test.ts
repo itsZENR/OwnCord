@@ -34,6 +34,18 @@ vi.mock("../../src/lib/platform/index", () => ({
   getAppVersion: vi.fn().mockReturnValue("test"),
 }));
 
+// Mock Tauri notification plugin with non-throwing stubs.
+// On the web path isTauri()===false, fireDesktopNotification returns before
+// ever reaching this dynamic import. These stubs ensure that if the explicit
+// web branch were accidentally bypassed (regression) the Tauri path would
+// succeed and call sendNotification — making the negative assertion on
+// sendNotification a true discriminator between the two paths.
+vi.mock("@tauri-apps/plugin-notification", () => ({
+  isPermissionGranted: vi.fn().mockResolvedValue(true),
+  requestPermission: vi.fn().mockResolvedValue("granted"),
+  sendNotification: vi.fn(),
+}));
+
 // Minimal AudioContext stub so playNotificationSound doesn't throw
 class MockAudioContext {
   readonly currentTime = 0;
@@ -61,6 +73,7 @@ class MockAudioContext {
 describe("notifications (web path)", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    vi.clearAllMocks();
     testPrefs.clear();
 
     // Set up auth store with a user whose id differs from the message sender
@@ -97,6 +110,7 @@ describe("notifications (web path)", () => {
   });
 
   it("constructs a Web Notification when permission granted and window hidden", async () => {
+    const { sendNotification } = await import("@tauri-apps/plugin-notification");
     const ctor = vi.fn();
     vi.stubGlobal("Notification", Object.assign(ctor, { permission: "granted" }));
 
@@ -113,9 +127,13 @@ describe("notifications (web path)", () => {
     await vi.waitFor(() => {
       expect(ctor).toHaveBeenCalled();
     });
+    // Tauri path must be bypassed — explicit web branch returns before the
+    // @tauri-apps/plugin-notification dynamic import is ever reached
+    expect(sendNotification).not.toHaveBeenCalled();
   });
 
   it("requests Web Notification permission when not yet granted and constructs on grant", async () => {
+    const { sendNotification } = await import("@tauri-apps/plugin-notification");
     const ctor = vi.fn();
     const mockRequestPerm = vi.fn().mockResolvedValue("granted");
     vi.stubGlobal(
@@ -137,9 +155,13 @@ describe("notifications (web path)", () => {
       expect(mockRequestPerm).toHaveBeenCalled();
       expect(ctor).toHaveBeenCalled();
     });
+    // Tauri path must be bypassed — explicit web branch returns before the
+    // @tauri-apps/plugin-notification dynamic import is ever reached
+    expect(sendNotification).not.toHaveBeenCalled();
   });
 
   it("does not construct a Web Notification when permission is denied", async () => {
+    const { sendNotification } = await import("@tauri-apps/plugin-notification");
     const ctor = vi.fn();
     vi.stubGlobal("Notification", Object.assign(ctor, { permission: "denied" }));
 
@@ -155,9 +177,12 @@ describe("notifications (web path)", () => {
 
     await new Promise((r) => setTimeout(r, 50));
     expect(ctor).not.toHaveBeenCalled();
+    // Tauri path must be bypassed — explicit web branch returns before the
+    // @tauri-apps/plugin-notification dynamic import is ever reached
+    expect(sendNotification).not.toHaveBeenCalled();
   });
 
-  it("does not fire when window is focused and message is in the active channel", () => {
+  it("does not fire when window is focused and message is in the active channel", async () => {
     vi.spyOn(document, "hasFocus").mockReturnValue(true);
     const ctor = vi.fn();
     vi.stubGlobal("Notification", Object.assign(ctor, { permission: "granted" }));
@@ -172,6 +197,9 @@ describe("notifications (web path)", () => {
       timestamp: new Date().toISOString(),
     });
 
+    // Wait for any async microtasks (fireDesktopNotification runs in void async IIFE)
+    // to settle before asserting the negative — prevents a timing false-positive
+    await new Promise((r) => setTimeout(r, 50));
     // The gate: isWindowFocused() && channel_id === activeChannelId → early return
     expect(ctor).not.toHaveBeenCalled();
   });
