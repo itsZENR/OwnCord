@@ -169,6 +169,11 @@ export class LiveKitSession {
     const quality = getStreamQuality();
     const isSource = quality === "source";
     const newRoom = new Room({
+      // Route remote audio through a Web Audio graph so per-user volume can
+      // exceed 100%. Without this, RemoteParticipant.setVolume() falls back to
+      // HTMLAudioElement.volume, which the browser clamps to [0,1] — making the
+      // per-user "louder" slider above 100% a no-op.
+      webAudioMix: true,
       // Adaptive features reduce quality based on subscriber viewport —
       // disable for "source" quality to maintain full resolution.
       adaptiveStream: !isSource,
@@ -571,6 +576,16 @@ export class LiveKitSession {
     }
 
     this.applyRemoteAudioSubscriptionState(deafened);
+
+    // The server resets muted/deafened to 0 on every (re)join (JoinVoiceChannel
+    // does `UPDATE SET muted = 0`). Re-assert our actual local state so the
+    // server — and therefore every other client's voice indicator — does not
+    // show us as unmuted after switching channels while muted/deafened.
+    const { localMuted, localDeafened } = voiceStore.getState();
+    if (this.ws !== null) {
+      if (localMuted) this.ws.send({ type: "voice_mute", payload: { muted: true } });
+      if (localDeafened) this.ws.send({ type: "voice_deafen", payload: { deafened: true } });
+    }
   }
 
   /** Apply effective volume to all remote participants. */
