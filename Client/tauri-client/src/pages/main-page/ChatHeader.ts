@@ -45,8 +45,13 @@ export function buildChatHeader(
   pinBtn.addEventListener("click", () => { opts.onTogglePins(); });
   const searchInput = createElement("input", {
     class: "search-input",
-    type: "text",
+    type: "search",
     placeholder: "Search...",
+    // Prevent browser autofill (it injects the logged-in username into a
+    // type=text field in the web build; the desktop webview never did this).
+    autocomplete: "off",
+    "data-1p-ignore": "true",
+    "data-lpignore": "true",
     "data-testid": "search-input",
   });
   if (opts.onSearchFocus !== undefined) {
