@@ -83,8 +83,18 @@ func TestDirectoryPathReturnsSPAFallback(t *testing.T) {
 	}
 }
 
+// wantCSP is the SPA Content-Security-Policy expected on all index responses.
+// It is broader than the API/admin policy to support WebAssembly, blob workers,
+// external images, cross-host WebSocket/media, and data-URI fonts.
+const wantCSP = "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' https: data: blob:; media-src 'self' https: blob:; connect-src 'self' https: wss:; worker-src 'self' blob:; font-src 'self' data:"
+
+// wantPermissionsPolicy is the Permissions-Policy expected on all index responses.
+// It grants camera, microphone, and display-capture to the origin itself so that
+// voice, video, and screenshare work. Geolocation is not granted.
+const wantPermissionsPolicy = "camera=(self), microphone=(self), display-capture=(self)"
+
 // TestIndexResponseHasCSPHeader ensures the root index response sets the
-// Content-Security-Policy header matching the admin panel policy.
+// Content-Security-Policy header matching the SPA-specific policy.
 func TestIndexResponseHasCSPHeader(t *testing.T) {
 	srv := httptest.NewServer(webapp.NewHandler())
 	defer srv.Close()
@@ -98,8 +108,61 @@ func TestIndexResponseHasCSPHeader(t *testing.T) {
 	if csp == "" {
 		t.Fatal("Content-Security-Policy header missing on GET /")
 	}
-	const want = "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'"
-	if csp != want {
-		t.Fatalf("CSP = %q, want %q", csp, want)
+	if csp != wantCSP {
+		t.Fatalf("CSP = %q, want %q", csp, wantCSP)
+	}
+}
+
+// TestIndexResponseHasPermissionsPolicy ensures GET / grants camera and
+// microphone to the origin (not the empty deny-all policy from the global
+// security-headers middleware).
+func TestIndexResponseHasPermissionsPolicy(t *testing.T) {
+	srv := httptest.NewServer(webapp.NewHandler())
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/")
+	if err != nil {
+		t.Fatalf("GET /: %v", err)
+	}
+	defer resp.Body.Close()
+	pp := resp.Header.Get("Permissions-Policy")
+	if pp == "" {
+		t.Fatal("Permissions-Policy header missing on GET /")
+	}
+	if pp != wantPermissionsPolicy {
+		t.Fatalf("Permissions-Policy = %q, want %q", pp, wantPermissionsPolicy)
+	}
+	// Explicitly assert grant direction: (self) not ().
+	if !strings.Contains(pp, "camera=(self)") {
+		t.Errorf("Permissions-Policy does not grant camera to self: %q", pp)
+	}
+	if !strings.Contains(pp, "microphone=(self)") {
+		t.Errorf("Permissions-Policy does not grant microphone to self: %q", pp)
+	}
+}
+
+// TestSPAFallbackHasCSPAndPermissionsPolicy ensures that deep SPA paths (which
+// hit the /* fallback) also carry the correct CSP and Permissions-Policy.
+func TestSPAFallbackHasCSPAndPermissionsPolicy(t *testing.T) {
+	srv := httptest.NewServer(webapp.NewHandler())
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/channels/999")
+	if err != nil {
+		t.Fatalf("GET /channels/999: %v", err)
+	}
+	defer resp.Body.Close()
+
+	csp := resp.Header.Get("Content-Security-Policy")
+	if csp != wantCSP {
+		t.Fatalf("SPA fallback CSP = %q, want %q", csp, wantCSP)
+	}
+
+	pp := resp.Header.Get("Permissions-Policy")
+	if pp != wantPermissionsPolicy {
+		t.Fatalf("SPA fallback Permissions-Policy = %q, want %q", pp, wantPermissionsPolicy)
+	}
+	if !strings.Contains(pp, "camera=(self)") {
+		t.Errorf("SPA fallback Permissions-Policy does not grant camera to self: %q", pp)
 	}
 }

@@ -13,9 +13,19 @@ import (
 //go:embed dist
 var staticFiles embed.FS
 
-// cspHeader mirrors the Content-Security-Policy used by the admin panel so
-// both surfaces share a consistent policy.
-const cspHeader = "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'"
+// cspHeader is the Content-Security-Policy for the web client SPA.
+// It is intentionally broader than the API/admin policy to support:
+//   - WebAssembly (noise-suppression WASM, LiveKit codecs): wasm-unsafe-eval
+//   - External images/link previews: img-src https: data: blob:
+//   - Blob workers (audio worklets): worker-src blob:
+//   - Cross-host WebSocket and media (LiveKit): connect-src wss:, media-src https: blob:
+//   - Web fonts embedded as data URIs: font-src data:
+const cspHeader = "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' https: data: blob:; media-src 'self' https: blob:; connect-src 'self' https: wss:; worker-src 'self' blob:; font-src 'self' data:"
+
+// permissionsPolicyHeader grants camera, microphone, and display-capture to the
+// origin itself, overriding the global middleware's empty (deny-all) policy.
+// Geolocation is not granted.
+const permissionsPolicyHeader = "camera=(self), microphone=(self), display-capture=(self)"
 
 // NewHandler returns an http.Handler serving the embedded web client.
 // Unknown paths fall back to index.html for client-side routing.
@@ -34,6 +44,7 @@ func NewHandler() http.Handler {
 	r.Get("/", func(w http.ResponseWriter, req *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Header().Set("Content-Security-Policy", cspHeader)
+		w.Header().Set("Permissions-Policy", permissionsPolicyHeader)
 		_, _ = w.Write(indexHTML)
 	})
 	// Serve a real asset if it exists and is not a directory; otherwise
@@ -53,6 +64,7 @@ func NewHandler() http.Handler {
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Header().Set("Content-Security-Policy", cspHeader)
+		w.Header().Set("Permissions-Policy", permissionsPolicyHeader)
 		_, _ = w.Write(indexHTML)
 	})
 	r.Get("/*", spaHandler)

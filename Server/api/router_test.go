@@ -194,3 +194,54 @@ func TestHealthMethodNotAllowed(t *testing.T) {
 		t.Errorf("POST /health status = %d, want 405", rec.Code)
 	}
 }
+
+// TestWebClientHeadersOverrideMiddleware verifies that the SPA handler's
+// Permissions-Policy and Content-Security-Policy headers take precedence over
+// the values set by the global SecurityHeaders middleware.
+//
+// The middleware sets:
+//   - Permissions-Policy: camera=(), microphone=(), geolocation=()  (deny all)
+//   - Content-Security-Policy: default-src 'self'
+//
+// The webapp handler must override both so that voice/video/screenshare work
+// and the rich client's WASM + blob + cross-host requirements are met.
+func TestWebClientHeadersOverrideMiddleware(t *testing.T) {
+	router := setupRouter(t)
+
+	for _, path := range []string{"/", "/channels/123"} {
+		t.Run(path, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, path, nil)
+			rec := httptest.NewRecorder()
+			router.ServeHTTP(rec, req)
+
+			// Permissions-Policy must grant self, not deny with empty allowlist.
+			pp := rec.Header().Get("Permissions-Policy")
+			if pp == "" {
+				t.Fatal("Permissions-Policy header missing")
+			}
+			if !strings.Contains(pp, "camera=(self)") {
+				t.Errorf("Permissions-Policy does not grant camera=(self), got: %q", pp)
+			}
+			if !strings.Contains(pp, "microphone=(self)") {
+				t.Errorf("Permissions-Policy does not grant microphone=(self), got: %q", pp)
+			}
+			// The middleware's deny-all value must NOT be present.
+			if strings.Contains(pp, "camera=()") {
+				t.Errorf("Permissions-Policy still contains middleware deny-all camera=(): %q", pp)
+			}
+
+			// CSP must be the SPA-specific policy, not the bare default-src 'self'.
+			csp := rec.Header().Get("Content-Security-Policy")
+			if !strings.Contains(csp, "'wasm-unsafe-eval'") {
+				t.Errorf("CSP missing wasm-unsafe-eval (WASM blocked): %q", csp)
+			}
+			if !strings.Contains(csp, "img-src") || !strings.Contains(csp, "https:") {
+				t.Errorf("CSP missing img-src https: (external images blocked): %q", csp)
+			}
+			// The bare middleware fallback policy must NOT be present.
+			if csp == "default-src 'self'" {
+				t.Errorf("CSP is the bare middleware policy, handler override did not take effect")
+			}
+		})
+	}
+}
