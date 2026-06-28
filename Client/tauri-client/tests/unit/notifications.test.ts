@@ -9,6 +9,12 @@ const { testPrefs } = vi.hoisted(() => ({
   testPrefs: new Map<string, unknown>(),
 }));
 
+// Mock platform as Tauri so the Tauri notification/taskbar paths are exercised
+vi.mock("../../src/lib/platform/index", () => ({
+  isTauri: vi.fn().mockReturnValue(true),
+  getAppVersion: vi.fn().mockReturnValue("test"),
+}));
+
 // Mock the settings helpers
 vi.mock("../../src/components/settings/helpers", () => ({
   STORAGE_PREFIX: "owncord:settings:",

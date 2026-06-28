@@ -8,6 +8,7 @@ import { authStore } from "@stores/auth.store";
 import { channelsStore } from "@stores/channels.store";
 import type { ChatMessagePayload } from "./types";
 import { createLogger } from "./logger";
+import { isTauri } from "./platform/index";
 
 const log = createLogger("notifications");
 
@@ -73,8 +74,26 @@ export function notifyIncomingMessage(payload: ChatMessagePayload): void {
   }
 }
 
-/** Fire a Tauri desktop notification. Falls back to Web Notification API. */
+/** Fire a desktop notification — web path or Tauri path, explicit branching. */
 function fireDesktopNotification(title: string, body: string): void {
+  if (!isTauri()) {
+    // Explicit Web Notifications API path (browser / web build)
+    void (async () => {
+      try {
+        if (Notification.permission === "granted") {
+          new Notification(title, { body });
+        } else if (Notification.permission !== "denied") {
+          const result = await Notification.requestPermission();
+          if (result === "granted") new Notification(title, { body });
+        }
+      } catch {
+        log.debug("Web notifications unavailable");
+      }
+    })();
+    return;
+  }
+
+  // Tauri desktop notification path (unchanged)
   void (async () => {
     try {
       const { isPermissionGranted, requestPermission, sendNotification } =
@@ -107,8 +126,9 @@ function fireDesktopNotification(title: string, body: string): void {
   })();
 }
 
-/** Flash the taskbar icon to attract attention. */
+/** Flash the taskbar icon to attract attention. No-op on web (no taskbar control). */
 function flashTaskbar(): void {
+  if (!isTauri()) return;
   void (async () => {
     try {
       const { getCurrentWindow } = await import("@tauri-apps/api/window");
