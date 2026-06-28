@@ -14,11 +14,13 @@ import {
   readTextFile,
 } from "@tauri-apps/plugin-fs";
 import { type LogEntry, addLogListener, createLogger } from "./logger";
+import { isTauri } from "./platform/index";
 
 const log = createLogger("logPersistence");
 const MAX_LOG_FILES = 5;
 const LOG_SUBDIR = "client-logs";
 
+let webBuffer: string[] = [];
 let logDir: string | null = null;
 let currentDate: string | null = null;
 let buffer: string[] = [];
@@ -27,6 +29,10 @@ let initialized = false;
 let activeFlush: Promise<void> | null = null;
 
 export async function clearPendingPersistedLogs(): Promise<void> {
+  if (!isTauri()) {
+    webBuffer = [];
+    return;
+  }
   buffer = [];
   if (flushTimer !== null) {
     clearTimeout(flushTimer);
@@ -129,6 +135,11 @@ function onLogEntry(entry: LogEntry): void {
  * Returns a cleanup function to remove the listener.
  */
 export async function initLogPersistence(): Promise<() => void> {
+  if (!isTauri()) {
+    const remove = addLogListener((entry) => { webBuffer.push(JSON.stringify(entry)); });
+    return () => { remove(); webBuffer = []; };
+  }
+
   if (initialized) return () => {};
 
   try {
@@ -169,6 +180,7 @@ export async function initLogPersistence(): Promise<() => void> {
  * since Tauri IPC is async and the WebView may be destroyed first.
  */
 export async function flushLogs(): Promise<void> {
+  if (!isTauri()) return; // web is in-memory only
   if (flushTimer !== null) {
     clearTimeout(flushTimer);
     flushTimer = null;
@@ -181,6 +193,7 @@ export async function flushLogs(): Promise<void> {
  * Returns null if persistence hasn't been initialized.
  */
 export function getLogDir(): string | null {
+  if (!isTauri()) return null;
   return logDir;
 }
 
@@ -189,6 +202,7 @@ export function getLogDir(): string | null {
  * Intended for on-demand export only (reads all files into memory).
  */
 export async function readAllPersistedLogs(): Promise<string> {
+  if (!isTauri()) return webBuffer.join("\n");
   if (!logDir) return "";
   try {
     const entries = await readDir(logDir);

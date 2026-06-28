@@ -13,6 +13,7 @@ import { clearAttachmentCaches } from "@components/message-list/attachments";
 import { clearEmbedCaches } from "@components/message-list/embeds";
 import { clearMediaCaches } from "@components/message-list/media";
 import { loadPref, savePref, createToggle } from "./helpers";
+import { isTauri } from "../../lib/platform";
 
 const log = createLogger("AdvancedTab");
 const IMAGE_CACHE_DELETE_BLOCK_TIMEOUT_MS = 1000;
@@ -72,7 +73,11 @@ export function buildAdvancedTab(signal: AbortSignal): HTMLDivElement {
   appendChildren(devtoolsInfo, devtoolsLabel, devtoolsDesc);
 
   const devtoolsBtn = createElement("button", { class: "ac-btn" }, "Open DevTools");
+  if (!isTauri()) {
+    devtoolsBtn.style.display = "none";
+  }
   devtoolsBtn.addEventListener("click", () => {
+    if (!isTauri()) return;
     void invoke("open_devtools").catch((err: unknown) => {
       log.warn("DevTools not available", { error: err instanceof Error ? err.message : String(err) });
     });
@@ -80,6 +85,15 @@ export function buildAdvancedTab(signal: AbortSignal): HTMLDivElement {
 
   appendChildren(devtoolsRow, devtoolsInfo, devtoolsBtn);
   section.appendChild(devtoolsRow);
+
+  // Web-only PTT hint
+  if (!isTauri()) {
+    const pttHint = createElement("div", {
+      class: "setting-desc",
+      style: "margin-top: 4px;",
+    }, "Push-to-talk works only while this browser tab is focused.");
+    section.appendChild(pttHint);
+  }
 
   // ---- Storage & Cache section ------------------------------------------------
 
@@ -258,6 +272,10 @@ function clearLocalStoragePreservingUserData(): void {
 
 /** Delete all JSONL log files from the app log directory. */
 async function clearLogFiles(): Promise<void> {
+  if (!isTauri()) {
+    await clearPendingPersistedLogs();
+    return;
+  }
   try {
     await clearPendingPersistedLogs();
     const baseDir = await appLogDir();

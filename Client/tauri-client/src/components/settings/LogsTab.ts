@@ -8,6 +8,7 @@ import type { LogEntry, LogLevel } from "@lib/logger";
 import type { TabName } from "../SettingsOverlay";
 import { getSessionDebugInfo } from "@lib/livekitSession";
 import { loadPref, savePref } from "./helpers";
+import { isTauri, getAppVersion } from "../../lib/platform";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -122,11 +123,13 @@ export function createLogsTab(
     // Version display
     const versionEl = createElement("div", {
       style: "font-size: 12px; color: var(--text-muted); margin: -8px 0 12px 0;",
-    }, "Client version: loading...");
+    }, `Client version: v${getAppVersion()}`);
     section.appendChild(versionEl);
-    void import("@tauri-apps/api/app").then(({ getVersion }) =>
-      getVersion().then((v) => { versionEl.textContent = `Client version: v${v}`; }),
-    ).catch(() => { versionEl.textContent = "Client version: unknown"; });
+    if (isTauri()) {
+      void import("@tauri-apps/api/app").then(({ getVersion }) =>
+        getVersion().then((v) => { versionEl.textContent = `Client version: v${v}`; }),
+      ).catch(() => { /* keep build-injected version */ });
+    }
 
     // Controls row
     const controls = createElement("div", {

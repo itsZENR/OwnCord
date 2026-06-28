@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("@lib/platform/index", () => ({ isTauri: () => true }));
+
 // ---------------------------------------------------------------------------
 // Hoisted mocks — available before any import runs
 // ---------------------------------------------------------------------------

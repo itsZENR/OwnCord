@@ -30,7 +30,7 @@ import { createCertMismatchModal } from "@components/CertMismatchModal";
 import { createProfileManager, createPlatformBackend } from "@lib/profiles";
 import type { CertTofuEvent } from "@lib/ws";
 
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { isTauri } from "@lib/platform";
 
 const log = createLogger("main");
 
@@ -42,6 +42,7 @@ document.addEventListener("contextmenu", (e) => {
 // F12 or Ctrl+Shift+I opens WebView2 DevTools.
 document.addEventListener("keydown", (e) => {
   if (e.key === "F12" || (e.ctrlKey && e.shiftKey && e.key === "I")) {
+    if (!isTauri()) return; // browser has its own devtools
     e.preventDefault();
     void import("@tauri-apps/api/core").then(({ invoke }) => {
       void invoke("open_devtools");
@@ -56,7 +57,11 @@ document.addEventListener("click", (e) => {
   e.preventDefault();
   const href = (link as HTMLAnchorElement).href;
   if (href && (href.startsWith("http://") || href.startsWith("https://"))) {
-    void openUrl(href);
+    if (isTauri()) {
+      void import("@tauri-apps/plugin-opener").then(({ openUrl }) => { void openUrl(href); });
+    } else {
+      window.open(href, "_blank", "noopener");
+    }
   }
 });
 

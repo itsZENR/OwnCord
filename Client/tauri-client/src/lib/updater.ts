@@ -5,6 +5,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { createLogger } from "@lib/logger";
+import { isTauri } from "./platform/index";
 
 const log = createLogger("updater");
 
@@ -16,6 +17,7 @@ export interface UpdateCheckResult {
 
 /** Check if a newer client version is available on the connected server. */
 export async function checkForUpdate(serverUrl: string): Promise<UpdateCheckResult> {
+  if (!isTauri()) return { available: false, version: null, body: null };
   try {
     const result = await invoke<UpdateCheckResult>("check_client_update", {
       serverUrl,
@@ -34,6 +36,7 @@ export async function checkForUpdate(serverUrl: string): Promise<UpdateCheckResu
 
 /** Download and install a pending update, then relaunch the app. */
 export async function downloadAndInstallUpdate(serverUrl: string): Promise<void> {
+  if (!isTauri()) return; // web is always current; server delivers the bundle
   log.info("Downloading and installing update...");
   await invoke("download_and_install_update", { serverUrl });
   log.info("Update installed, relaunching...");

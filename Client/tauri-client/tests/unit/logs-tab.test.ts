@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
+vi.mock("@lib/platform/index", () => ({
+  isTauri: () => true,
+  getAppVersion: () => "1.0.0",
+}));
+
 // vi.hoisted ensures these are available when vi.mock factory runs
 const {
   mockGetLogBuffer,
