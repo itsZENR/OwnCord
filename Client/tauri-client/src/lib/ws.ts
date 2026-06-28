@@ -1,28 +1,17 @@
 // Step 2.15 — WebSocket Client
-// Uses Tauri IPC (ws_connect/ws_send/ws_disconnect commands + events)
-// to proxy WSS through Rust, bypassing self-signed cert issues in webview.
+// Transport-agnostic: delegates raw WS operations to a WsTransport selected
+// at runtime (Tauri proxy for desktop, native WebSocket for web).
 
 import type { ServerMessage, ClientMessage } from "./types";
 import { createLogger } from "./logger";
+import { createWsTransport } from "./platform/wsTransport";
+import type { WsTransport, CertTofuEvent } from "./platform/wsTransport";
 
 const log = createLogger("ws");
 
-// Tauri IPC imports — resolved at runtime in Tauri context
-let tauriInvoke: ((cmd: string, args?: Record<string, unknown>) => Promise<unknown>) | null = null;
-let tauriListen: ((event: string, handler: (e: { payload: unknown }) => void) => Promise<() => void>) | null = null;
-
-// Dynamically load Tauri APIs (avoids import errors in test/browser env)
-async function ensureTauriApis(): Promise<void> {
-  if (tauriInvoke !== null) return;
-  try {
-    const core = await import("@tauri-apps/api/core");
-    const event = await import("@tauri-apps/api/event");
-    tauriInvoke = core.invoke;
-    tauriListen = event.listen;
-  } catch {
-    log.warn("Tauri APIs not available — WebSocket proxy will not work");
-  }
-}
+// Re-export transport types so existing importers of @lib/ws stay unaffected.
+export type { CertTofuEvent } from "./platform/wsTransport";
+export { parseStoredFingerprint } from "./platform/wsTransport";
 
 export type ConnectionState =
   | "disconnected"
@@ -35,22 +24,6 @@ export type WsListener<T extends ServerMessage["type"]> = (
   payload: Extract<ServerMessage, { type: T }>["payload"],
   id?: string,
 ) => void;
-
-/** TOFU certificate event emitted by the Rust WS proxy. */
-export interface CertTofuEvent {
-  readonly host: string;
-  readonly fingerprint: string;
-  readonly status: "trusted_first_use" | "trusted" | "mismatch";
-  readonly message?: string;
-  readonly storedFingerprint?: string;
-}
-
-/** Parse the stored fingerprint from the Rust cert-tofu message string. */
-export function parseStoredFingerprint(message?: string): string | undefined {
-  if (!message) return undefined;
-  const match = /Stored:\s+(\S+)/.exec(message);
-  return match?.[1];
-}
 
 export type CertMismatchListener = (event: CertTofuEvent) => void;
 
@@ -85,8 +58,8 @@ export function createWsClient() {
   let replayDedup: Set<string> | null = null;
   const MAX_DEDUP_SIZE = 1000;
 
-  // Tauri event unsubscribe functions
-  const eventUnsubs: Array<() => void> = [];
+  // Transport — created on first connect(), reused across reconnects.
+  let transport: WsTransport | null = null;
 
   // Type-safe listener registry
   const listeners = new Map<string, Set<WsListener<ServerMessage["type"]>>>();
@@ -212,7 +185,7 @@ export function createWsClient() {
       log.error("Authentication failed", { message: msg.payload.message });
       intentionalClose = true;
       dispatch(msg);
-      void disconnectProxy();
+      void disconnectTransport();
       setState("disconnected");
       return;
     }
@@ -254,67 +227,64 @@ export function createWsClient() {
     }
   }
 
-  async function setupEventListeners(): Promise<void> {
-    if (tauriListen === null) return;
+  async function connect(cfg: WsClientConfig): Promise<void> {
+    config = cfg;
+    intentionalClose = false;
+    cancelReconnect();
 
-    // Server messages
-    const unsubMsg = await tauriListen("ws-message", (e) => {
-      handleMessage(e.payload as string);
+    setState("connecting");
+
+    const wsUrl = `wss://${cfg.host}/api/v1/ws`;
+    log.info("WebSocket connecting", {
+      url: wsUrl,
+      isReconnect: reconnectAttempt > 0,
+      attempt: reconnectAttempt,
     });
-    eventUnsubs.push(unsubMsg);
 
-    // Connection state changes from Rust
-    const unsubState = await tauriListen("ws-state", (e) => {
-      const rustState = e.payload as string;
-      log.debug("Rust WS state", { state: rustState });
+    // Create transport and register callbacks once on first connect.
+    if (transport === null) {
+      transport = await createWsTransport();
 
-      if (rustState === "open") {
-        proxyOpen = true;
-        log.info("WebSocket open, sending auth", {
-          host: config?.host ?? "unknown",
-          isReconnect: reconnectAttempt > 0,
-          lastSeq,
-        });
-        // Enable dedup during reconnection replay
-        if (reconnectAttempt > 0 && lastSeq > 0) {
-          replayDedup = new Set();
-        }
-        setState("authenticating");
-        if (config === null) return;
-        send({ type: "auth", payload: { token: config.token, last_seq: lastSeq } });
-      } else if (rustState === "closed") {
-        proxyOpen = false;
-        log.info("WebSocket closed", {
-          host: config?.host ?? "unknown",
-          intentional: intentionalClose,
-          certBlocked: certMismatchBlock,
-        });
-        stopHeartbeat();
-        if (!intentionalClose) {
-          scheduleReconnect();
+      transport.onMessage(handleMessage);
+
+      transport.onState((open) => {
+        log.debug("WS transport state", { open });
+        if (open) {
+          proxyOpen = true;
+          log.info("WebSocket open, sending auth", {
+            host: config?.host ?? "unknown",
+            isReconnect: reconnectAttempt > 0,
+            lastSeq,
+          });
+          // Enable dedup during reconnection replay
+          if (reconnectAttempt > 0 && lastSeq > 0) {
+            replayDedup = new Set();
+          }
+          setState("authenticating");
+          if (config === null) return;
+          send({ type: "auth", payload: { token: config.token, last_seq: lastSeq } });
         } else {
-          setState("disconnected");
+          proxyOpen = false;
+          log.info("WebSocket closed", {
+            host: config?.host ?? "unknown",
+            intentional: intentionalClose,
+            certBlocked: certMismatchBlock,
+          });
+          stopHeartbeat();
+          if (!intentionalClose) {
+            scheduleReconnect();
+          } else {
+            setState("disconnected");
+          }
         }
-      }
-    });
-    eventUnsubs.push(unsubState);
+      });
 
-    // Errors
-    const unsubErr = await tauriListen("ws-error", (e) => {
-      log.warn("WebSocket error (proxy)", { error: e.payload });
-    });
-    eventUnsubs.push(unsubErr);
+      transport.onError((err) => {
+        log.warn("WebSocket error (proxy)", { error: err });
+      });
 
-    // TOFU certificate events
-    const unsubCert = await tauriListen("cert-tofu", (e) => {
-      const raw = e.payload as CertTofuEvent;
-      log.info("TOFU cert event", { host: raw.host, status: raw.status });
-
-      if (raw.status === "mismatch") {
-        const evt: CertTofuEvent = {
-          ...raw,
-          storedFingerprint: parseStoredFingerprint(raw.message),
-        };
+      transport.onCertMismatch((evt) => {
+        log.info("TOFU cert event", { host: evt.host, status: evt.status });
         log.error("Certificate fingerprint mismatch!", {
           host: evt.host,
           fingerprint: evt.fingerprint,
@@ -325,59 +295,16 @@ export function createWsClient() {
         for (const listener of certMismatchListeners) {
           listener(evt);
         }
-      }
-    });
-    eventUnsubs.push(unsubCert);
-  }
-
-  function cleanupEventListeners(): void {
-    for (const unsub of eventUnsubs) {
-      try {
-        // Unsub may return a rejected promise if the Tauri resource
-        // was already invalidated after disconnect — safe to ignore.
-        const result = unsub() as unknown;
-        if (result instanceof Promise) {
-          result.catch(() => {});
-        }
-      } catch {
-        // Sync errors also safe to ignore.
-      }
+      });
     }
-    eventUnsubs.length = 0;
-  }
-
-  async function connect(cfg: WsClientConfig): Promise<void> {
-    config = cfg;
-    intentionalClose = false;
-    cancelReconnect();
-
-    setState("connecting");
-
-    await ensureTauriApis();
-    if (tauriInvoke === null) {
-      log.error("Tauri APIs not available, cannot connect WebSocket");
-      setState("disconnected");
-      return;
-    }
-
-    const wsUrl = `wss://${cfg.host}/api/v1/ws`;
-    log.info("WebSocket connecting", {
-      url: wsUrl,
-      isReconnect: reconnectAttempt > 0,
-      attempt: reconnectAttempt,
-    });
-
-    // Set up event listeners before connecting
-    cleanupEventListeners();
-    await setupEventListeners();
 
     try {
-      await tauriInvoke("ws_connect", { url: wsUrl });
+      await transport.connect(wsUrl);
     } catch (err) {
       log.error("ws_connect failed", err);
       proxyOpen = false;
 
-      // Cert mismatch is handled by the cert-tofu event listener
+      // Cert mismatch is handled by the onCertMismatch callback
       // (which sets certMismatchBlock before this catch runs).
       // scheduleReconnect() checks certMismatchBlock and will no-op if set.
       scheduleReconnect();
@@ -385,13 +312,11 @@ export function createWsClient() {
   }
 
   function sendRaw(json: string): void {
-    if (tauriInvoke === null || !proxyOpen) {
+    if (transport === null || !proxyOpen) {
       log.warn("Cannot send, WebSocket not open");
       return;
     }
-    tauriInvoke("ws_send", { message: json }).catch((err) => {
-      log.error("ws_send failed", err);
-    });
+    transport.send(json);
   }
 
   function send(msg: ClientMessage | { type: string; payload: unknown }): string {
@@ -402,13 +327,14 @@ export function createWsClient() {
     return id;
   }
 
-  async function disconnectProxy(): Promise<void> {
-    if (tauriInvoke !== null) {
-      try {
-        await tauriInvoke("ws_disconnect");
-      } catch {
-        // ignore
-      }
+  async function disconnectTransport(): Promise<void> {
+    // Capture and null out immediately so the next connect() creates a fresh
+    // transport (with fresh Tauri event subscriptions) rather than reusing one
+    // whose subscriptions are being torn down concurrently.
+    const t = transport;
+    transport = null;
+    if (t !== null) {
+      await t.disconnect();
     }
     proxyOpen = false;
   }
@@ -419,8 +345,7 @@ export function createWsClient() {
     certMismatchBlock = false;
     cancelReconnect();
     stopHeartbeat();
-    cleanupEventListeners();
-    void disconnectProxy();
+    void disconnectTransport();
     setState("disconnected");
     // Reset lastSeq — disconnect() is only called for intentional close
     // (logout). Automatic reconnects go through scheduleReconnect() which
@@ -470,11 +395,10 @@ export function createWsClient() {
      * then reconnect.
      */
     async acceptCertFingerprint(host: string, fingerprint: string): Promise<void> {
-      await ensureTauriApis();
-      if (tauriInvoke === null) {
-        throw new Error("Tauri APIs not available");
+      if (transport === null) {
+        throw new Error("Transport not initialized");
       }
-      await tauriInvoke("accept_cert_fingerprint", { host, fingerprint });
+      await transport.acceptCertFingerprint(host, fingerprint);
       certMismatchBlock = false;
       log.info("Accepted new cert fingerprint", { host });
     },

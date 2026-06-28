@@ -29,6 +29,13 @@ vi.mock("@tauri-apps/api/event", () => ({
   listen: mockListen,
 }));
 
+// Make isTauri() return true so createWsTransport() selects the Tauri transport.
+// The Tauri transport then uses the mocked @tauri-apps/api modules above.
+vi.mock("../../src/lib/platform/index", () => ({
+  isTauri: () => true,
+  getAppVersion: () => "dev",
+}));
+
 // Mock crypto.randomUUID
 vi.stubGlobal("crypto", {
   randomUUID: () => "test-uuid-1234",
