@@ -33,6 +33,7 @@ import { loadPref } from "@components/settings/helpers";
 import { createLogger } from "@lib/logger";
 import { invoke } from "@tauri-apps/api/core";
 import { isTauri } from "./platform/index";
+import { playVoiceJoinSound } from "@lib/voiceSounds";
 import { AudioPipeline } from "@lib/audioPipeline";
 import { AudioElements } from "@lib/audioElements";
 import { DeviceManager } from "@lib/deviceManager";
@@ -696,6 +697,9 @@ export class LiveKitSession {
         this.reapplyMuteGain();
         this.startTokenRefreshTimer();
         log.info("Voice session active", { channelId });
+        // Play the join cue only on a fresh connect (this path), never on
+        // reconnects or token refreshes — matches Discord's behavior.
+        playVoiceJoinSound();
       }
     } catch (err) {
       log.error("Failed to connect to LiveKit", { url: resolvedUrl, error: err });
