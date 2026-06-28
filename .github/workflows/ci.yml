@@ -63,6 +63,10 @@ jobs:
       - name: Install npm dependencies
         run: npm ci
 
+      - name: Build web bundle
+        working-directory: Client/tauri-client
+        run: npm run build:web
+
       - name: TypeScript check
         run: npx tsc --noEmit
 

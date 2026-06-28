@@ -38,6 +38,21 @@ jobs:
           VERSION="${GITHUB_REF_NAME#v}"
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
 
+      - name: Install client deps
+        working-directory: Client/tauri-client
+        run: npm ci
+
+      - name: Build web client bundle
+        working-directory: Client/tauri-client
+        run: npm run build:web
+
+      - name: Copy web bundle into server embed dir
+        shell: bash
+        run: |
+          rm -rf Server/webapp/dist
+          mkdir -p Server/webapp/dist
+          cp -r Client/tauri-client/dist-web/* Server/webapp/dist/
+
       - name: Build server (Windows)
         shell: bash
         run: cd Server && go build -o chatserver.exe -ldflags "-s -w -X main.version=$VERSION" .
