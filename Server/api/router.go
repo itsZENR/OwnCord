@@ -16,6 +16,7 @@ import (
 	"github.com/owncord/server/db"
 	"github.com/owncord/server/storage"
 	"github.com/owncord/server/updater"
+	"github.com/owncord/server/webapp"
 	"github.com/owncord/server/ws"
 )
 
@@ -173,6 +174,10 @@ func NewRouter(cfg *config.Config, database *db.DB, ver string, logBuf *admin.Ri
 
 	// Client auto-update endpoint (unauthenticated).
 	MountClientUpdateRoute(r, u)
+
+	// Public web client: SPA served at root. Registered LAST so it does not
+	// shadow /api/v1/*, /admin, or /health.
+	r.Mount("/", webapp.NewHandler())
 
 	// Issue 15: Warn if AllowedOrigins contains wildcard.
 	for _, o := range cfg.Server.AllowedOrigins {
