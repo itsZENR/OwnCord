@@ -27,7 +27,7 @@ import { initLogPersistence, flushLogs } from "@lib/logPersistence";
 import { saveCredential, loadCredential, deleteCredential } from "@lib/credentials";
 import { initWindowState } from "@lib/window-state";
 import { createCertMismatchModal } from "@components/CertMismatchModal";
-import { createProfileManager, createTauriBackend } from "@lib/profiles";
+import { createProfileManager, createPlatformBackend } from "@lib/profiles";
 import type { CertTofuEvent } from "@lib/ws";
 
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -84,7 +84,7 @@ const api = createApiClient({ host: "" }, () => {
   clearAuth();
 });
 const ws = createWsClient();
-const profileManager = createProfileManager(createTauriBackend());
+const profileManager = createProfileManager(createPlatformBackend());
 let dispatcherCleanup: (() => void) | null = null;
 let connectedOverlay: ConnectedOverlayControl | null = null;
 let lastConnectHost = "";

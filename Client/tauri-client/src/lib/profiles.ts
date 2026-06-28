@@ -8,6 +8,7 @@
 
 import { createStore, type Store } from "./store";
 import { platformFetch as fetch } from "./platform/http";
+import { getSettings, saveSettings } from "./platform/kvStore";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -103,25 +104,25 @@ function isValidStoredData(data: unknown): data is StoredData {
 }
 
 // ---------------------------------------------------------------------------
-// Default Tauri persistence backend
+// Platform-aware persistence backend (Tauri → Rust store; web → localStorage)
 // ---------------------------------------------------------------------------
 
-export function createTauriBackend(): PersistenceBackend {
+export function createPlatformBackend(): PersistenceBackend {
   return {
     async load(): Promise<StoredData | null> {
-      const { invoke } = await import("@tauri-apps/api/core");
-      const settings = await invoke<Record<string, unknown>>("get_settings");
+      const settings = await getSettings();
       const raw = settings[STORAGE_KEY];
       if (raw === undefined || raw === null) return null;
-      if (isValidStoredData(raw)) return raw;
-      return null;
+      return isValidStoredData(raw) ? raw : null;
     },
     async save(data: StoredData): Promise<void> {
-      const { invoke } = await import("@tauri-apps/api/core");
-      await invoke("save_settings", { key: STORAGE_KEY, value: data });
+      await saveSettings(STORAGE_KEY, data);
     },
   };
 }
+
+// Back-compat alias so existing callers/tests keep working.
+export const createTauriBackend = createPlatformBackend;
 
 // ---------------------------------------------------------------------------
 // Profile Manager

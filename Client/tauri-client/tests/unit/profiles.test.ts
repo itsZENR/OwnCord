@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from "vitest";
 
 const mockInvoke = vi.fn();
 vi.mock("@tauri-apps/api/core", () => ({
@@ -717,6 +717,13 @@ describe("ProfileManager", () => {
   describe("createTauriBackend", () => {
     beforeEach(() => {
       mockInvoke.mockReset();
+      // Simulate Tauri runtime so isTauri() returns true and kvStore
+      // routes through invoke rather than localStorage.
+      (globalThis as Record<string, unknown>).__TAURI_INTERNALS__ = {};
+    });
+
+    afterEach(() => {
+      delete (globalThis as Record<string, unknown>).__TAURI_INTERNALS__;
     });
 
     it("load returns null when no data is stored", async () => {

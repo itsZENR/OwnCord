@@ -4,6 +4,8 @@
  */
 
 import { createLogger } from "./logger";
+import { isTauri } from "./platform/index";
+import { getSettings, saveSettings } from "./platform/kvStore";
 
 const log = createLogger("window-state");
 
@@ -18,20 +20,12 @@ export interface WindowState {
 const STORAGE_KEY = "windowState";
 const SAVE_DEBOUNCE_MS = 500;
 
-const invokePromise: Promise<
-  ((cmd: string, args?: Record<string, unknown>) => Promise<unknown>) | null
-> = import("@tauri-apps/api/core")
-  .then((m) => m.invoke)
-  .catch(() => null);
-
 /**
- * Save the current window state to the Tauri settings store.
+ * Save the current window state to the settings store.
  */
 async function saveState(state: WindowState): Promise<void> {
-  const invoke = await invokePromise;
-  if (!invoke) return;
   try {
-    await invoke("save_settings", { key: STORAGE_KEY, value: state });
+    await saveSettings(STORAGE_KEY, state);
   } catch (err) {
     log.error("Failed to save window state", { error: String(err) });
   }
@@ -41,10 +35,8 @@ async function saveState(state: WindowState): Promise<void> {
  * Load the previously saved window state.
  */
 async function loadState(): Promise<WindowState | null> {
-  const invoke = await invokePromise;
-  if (!invoke) return null;
   try {
-    const all = (await invoke("get_settings")) as Record<string, unknown>;
+    const all = await getSettings();
     const raw = all[STORAGE_KEY];
     if (raw && typeof raw === "object") {
       const s = raw as Record<string, unknown>;
@@ -77,6 +69,7 @@ async function loadState(): Promise<WindowState | null> {
  * Returns a cleanup function.
  */
 export async function initWindowState(): Promise<() => void> {
+  if (!isTauri()) return () => {}; // browser has no window control
   let tauriWindow: typeof import("@tauri-apps/api/window") | undefined;
   try {
     tauriWindow = await import("@tauri-apps/api/window");
