@@ -5,6 +5,7 @@ const { fetchMock, putSpy } = vi.hoisted(() => ({
   putSpy: vi.fn<any>(),
 }));
 
+vi.mock("../../src/lib/platform/index", () => ({ isTauri: () => true }));
 vi.mock("../../src/lib/platform/http", () => ({
   platformFetch: fetchMock,
 }));

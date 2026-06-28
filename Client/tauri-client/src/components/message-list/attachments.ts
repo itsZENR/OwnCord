@@ -12,6 +12,7 @@ import { observeMedia } from "@lib/media-visibility";
 import { loadPref } from "@components/settings/helpers";
 import { createLogger } from "@lib/logger";
 import { platformFetch as tauriFetch } from "../../lib/platform/http";
+import { isTauri } from "../../lib/platform/index";
 import { save } from "@tauri-apps/plugin-dialog";
 
 const log = createLogger("attachments");
@@ -186,6 +187,10 @@ export function uint8ToBase64(bytes: Uint8Array): string {
 
 /** Fetch an image and return a data: URI. Uses memory → IndexedDB → network. */
 export function fetchImageAsDataUrl(url: string): Promise<string | null> {
+  // On web, only attempt data-URL conversion for same-origin server images.
+  // Cross-origin images are CORS-blocked; return null so callers use <img src> directly.
+  if (!isTauri() && !isServerUrl(url)) return Promise.resolve(null);
+
   const generation = attachmentCacheGeneration;
 
   // 1. Memory cache (instant)
@@ -361,11 +366,29 @@ export function renderAttachment(att: Attachment): HTMLDivElement {
   return wrap;
 }
 
-/** Download a file via Tauri HTTP plugin and save to disk with native dialog.
- *  NOTE: This requires fs:allow-write-file with path "**" in capabilities because
+/** Download a file. On web: triggers a browser <a download> via object URL.
+ *  On Tauri: shows a native save dialog and writes the file to disk.
+ *  NOTE (Tauri): requires fs:allow-write-file with path "**" in capabilities because
  *  the user chooses the save location via the native OS dialog — the destination is
  *  not under our control. The dialog itself is the security boundary. */
-async function downloadFile(url: string, filename: string): Promise<void> {
+export async function downloadFile(url: string, filename: string): Promise<void> {
+  if (!isTauri()) {
+    try {
+      const res = await tauriFetch(url);
+      if (!res.ok) return;
+      const blob = await res.blob();
+      const objUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objUrl;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(objUrl);
+    } catch (err) {
+      log.error("Download failed", { filename, error: String(err) });
+    }
+    return;
+  }
+
   try {
     // Show native save dialog with suggested filename
     const filePath = await save({ defaultPath: filename });
