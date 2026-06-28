@@ -2,6 +2,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // --- Mocks must be declared before imports ---
 
+vi.mock("../../src/lib/platform/index", () => ({
+  isTauri: () => true,
+}));
+
 const mockVoiceState = vi.hoisted(() => ({
   localMuted: false,
   localDeafened: false,
