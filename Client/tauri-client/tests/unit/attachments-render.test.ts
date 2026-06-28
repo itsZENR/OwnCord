@@ -13,8 +13,8 @@ const { fetchMock, saveMock, writeFileMock } = vi.hoisted(() => ({
   writeFileMock: vi.fn(),
 }));
 
-vi.mock("@tauri-apps/plugin-http", () => ({
-  fetch: fetchMock,
+vi.mock("../../src/lib/platform/http", () => ({
+  platformFetch: fetchMock,
 }));
 
 vi.mock("@lib/logger", () => ({

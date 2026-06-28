@@ -12,7 +12,7 @@ import { createIcon } from "@lib/icons";
 import { createLogger } from "@lib/logger";
 import { observeMedia } from "@lib/media-visibility";
 import { loadPref } from "@components/settings/helpers";
-import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
+import { platformFetch as tauriFetch } from "../../lib/platform/http";
 import { isSafeUrl } from "./attachments";
 import { CODE_BLOCK_REGEX, INLINE_CODE_REGEX, URL_REGEX } from "./content-parser";
 import { renderGenericLinkPreview } from "./embeds";

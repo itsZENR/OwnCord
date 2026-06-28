@@ -1,7 +1,7 @@
 // Step 2.13 — REST API Client
 // Uses Tauri's HTTP plugin fetch to bypass self-signed cert rejection in webview.
 
-import { fetch } from "@tauri-apps/plugin-http";
+import { platformFetch as fetch } from "./platform/http";
 import { createLogger } from "./logger";
 import type {
   AuthResponse,

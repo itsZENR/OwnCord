@@ -7,7 +7,7 @@
  */
 
 import { createStore, type Store } from "./store";
-import { fetch } from "@tauri-apps/plugin-http";
+import { platformFetch as fetch } from "./platform/http";
 
 // ---------------------------------------------------------------------------
 // Constants

@@ -8,7 +8,7 @@ import {
   setText,
 } from "@lib/dom";
 import { observeMedia } from "@lib/media-visibility";
-import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
+import { platformFetch as tauriFetch } from "../../lib/platform/http";
 import { createLogger } from "@lib/logger";
 import { isSafeUrl, isTrustedServerUrl } from "./attachments";
 

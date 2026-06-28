@@ -6,8 +6,8 @@ const { mockFetch } = vi.hoisted(() => ({
   mockFetch: vi.fn(),
 }));
 
-vi.mock("@tauri-apps/plugin-http", () => ({
-  fetch: mockFetch,
+vi.mock("../../src/lib/platform/http", () => ({
+  platformFetch: mockFetch,
 }));
 
 import { createApiClient, ApiClientError } from "../../src/lib/api";

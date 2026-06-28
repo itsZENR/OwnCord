@@ -11,7 +11,7 @@ import { createIcon } from "@lib/icons";
 import { observeMedia } from "@lib/media-visibility";
 import { loadPref } from "@components/settings/helpers";
 import { createLogger } from "@lib/logger";
-import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
+import { platformFetch as tauriFetch } from "../../lib/platform/http";
 import { save } from "@tauri-apps/plugin-dialog";
 
 const log = createLogger("attachments");
