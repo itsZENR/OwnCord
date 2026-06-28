@@ -47,8 +47,12 @@ export function buildChatHeader(
     class: "search-input",
     type: "search",
     placeholder: "Search...",
-    // Prevent browser autofill (it injects the logged-in username into a
-    // type=text field in the web build; the desktop webview never did this).
+    // This field is a decorative trigger: focusing it opens the search UI and
+    // immediately blurs (see below), so it never accepts typed input. Marking
+    // it readonly makes browsers/password-managers skip autofill entirely —
+    // autocomplete=off alone is unreliable (Chrome ignored it and injected the
+    // logged-in username here in the web build; the desktop webview never did).
+    readonly: "true",
     autocomplete: "off",
     "data-1p-ignore": "true",
     "data-lpignore": "true",
