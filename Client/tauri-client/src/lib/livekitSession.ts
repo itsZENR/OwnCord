@@ -32,11 +32,30 @@ import {
 import { loadPref } from "@components/settings/helpers";
 import { createLogger } from "@lib/logger";
 import { invoke } from "@tauri-apps/api/core";
+import { isTauri } from "./platform/index";
 import { AudioPipeline } from "@lib/audioPipeline";
 import { AudioElements } from "@lib/audioElements";
 import { DeviceManager } from "@lib/deviceManager";
 
 const log = createLogger("livekitSession");
+
+// --- Web URL resolver (exported for unit tests) ---
+
+/**
+ * Resolves a LiveKit URL for the browser (web) build where a valid TLS cert
+ * is always present — no Rust TLS proxy is needed.
+ *
+ * Priority:
+ *   1. `directUrl` — used as-is when provided.
+ *   2. `proxyPath` that is already an absolute ws/wss URL — passed through.
+ *   3. Relative path — prefixed with `wss://{serverHost}`.
+ */
+export function resolveLiveKitUrlWeb(serverHost: string, proxyPath: string, directUrl?: string): string {
+  if (directUrl) return directUrl;
+  if (proxyPath.startsWith("ws://") || proxyPath.startsWith("wss://")) return proxyPath;
+  const host = serverHost.split(":")[0] ?? serverHost;
+  return `wss://${host}${proxyPath.startsWith("/") ? proxyPath : `/${proxyPath}`}`;
+}
 
 // --- Stream quality presets ---
 
@@ -392,6 +411,9 @@ export class LiveKitSession {
   // --- URL resolution ---
 
   private async resolveLiveKitUrl(proxyPath: string, directUrl?: string): Promise<string> {
+    if (!isTauri() && this.serverHost !== null) {
+      return resolveLiveKitUrlWeb(this.serverHost, proxyPath, directUrl);
+    }
     if (this.serverHost !== null) {
       const host = this.serverHost.split(":")[0] ?? "";
       const isLocal = host === "localhost" || host === "127.0.0.1" || host === "::1";
@@ -414,6 +436,7 @@ export class LiveKitSession {
 
   /** Start (or reuse) the Rust-side local TCP-to-TLS proxy for LiveKit. */
   private async ensureLiveKitProxy(): Promise<number> {
+    if (!isTauri()) throw new Error("LiveKit proxy is only available in the Tauri desktop build");
     if (this.liveKitProxyPort !== null) return this.liveKitProxyPort;
     if (this.serverHost === null) throw new Error("no server host for LiveKit proxy");
     // Ensure host:port format — default to 443 (standard HTTPS) when the
@@ -754,8 +777,10 @@ export class LiveKitSession {
     this.ws = null;
     this.serverHost = null;
     this.liveKitProxyPort = null;
-    // Stop the Rust-side TLS proxy (fire-and-forget).
-    invoke("stop_livekit_proxy").catch((err) => log.warn("Failed to stop LiveKit proxy", err));
+    // Stop the Rust-side TLS proxy (fire-and-forget; desktop only).
+    if (isTauri()) {
+      invoke("stop_livekit_proxy").catch((err) => log.warn("Failed to stop LiveKit proxy", err));
+    }
   }
 
   setMuted(muted: boolean): void {
