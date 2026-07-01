@@ -11,6 +11,10 @@ import {
   playDeafenSound,
   playUndeafenSound,
   playVoiceLeaveSound,
+  playCameraOnSound,
+  playCameraOffSound,
+  playScreenshareOnSound,
+  playScreenshareOffSound,
 } from "@lib/voiceSounds";
 import {
   voiceStore,
@@ -111,8 +115,10 @@ export function createVoiceWidgetCallbacks(
         log.error("Camera toggle failed", { error: String(err) });
       };
       if (next) {
+        playCameraOnSound();
         enableCamera().catch(handleCameraError);
       } else {
+        playCameraOffSound();
         disableCamera().catch(handleCameraError);
       }
     },
@@ -123,8 +129,10 @@ export function createVoiceWidgetCallbacks(
         log.error("Screenshare toggle failed", { error: String(err) });
       };
       if (next) {
+        playScreenshareOnSound();
         enableScreenshare().catch(handleScreenshareError);
       } else {
+        playScreenshareOffSound();
         disableScreenshare().catch(handleScreenshareError);
       }
     },

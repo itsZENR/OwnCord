@@ -128,6 +128,26 @@ export function playDisconnectSound(): void {
   playBlip([A4, D4], { noteDuration: 0.16, gap: 0.11 });
 }
 
+/** Rising pair when the local user turns their camera on. */
+export function playCameraOnSound(): void {
+  playBlip([E5, A5], { noteDuration: 0.1 });
+}
+
+/** Falling pair when the local user turns their camera off. */
+export function playCameraOffSound(): void {
+  playBlip([A5, E5], { noteDuration: 0.1 });
+}
+
+/** Rising triple when the local user starts sharing their screen. */
+export function playScreenshareOnSound(): void {
+  playBlip([C5, G5, C6], { gap: 0.07, noteDuration: 0.1 });
+}
+
+/** Falling triple when the local user stops sharing their screen. */
+export function playScreenshareOffSound(): void {
+  playBlip([C6, G5, C5], { gap: 0.07, noteDuration: 0.1 });
+}
+
 // --- Others cues (quieter, higher, lighter) ---
 
 const OTHERS_GAIN = 0.1;

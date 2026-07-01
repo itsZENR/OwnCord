@@ -5,6 +5,8 @@ import {
   playMuteSound,
   playUserJoinedSound,
   suppressOthersCuesBriefly,
+  playCameraOnSound,
+  playScreenshareOnSound,
 } from "../../src/lib/voiceSounds";
 
 // Minimal Web Audio API mock that records what was scheduled.
@@ -74,6 +76,18 @@ describe("playVoiceJoinSound", () => {
   it("plays the mute cue as a single note", () => {
     playMuteSound();
     expect(FakeAudioContext.oscillators).toHaveLength(1);
+  });
+
+  it("plays the camera-on cue as a rising pair", () => {
+    playCameraOnSound();
+    const freqs = FakeAudioContext.oscillators.map((o) => o.frequency.value);
+    expect(freqs).toHaveLength(2);
+    expect(freqs[1]!).toBeGreaterThan(freqs[0]!);
+  });
+
+  it("plays the screenshare-on cue as a rising triple", () => {
+    playScreenshareOnSound();
+    expect(FakeAudioContext.oscillators).toHaveLength(3);
   });
 
   it("suppresses 'user joined' cues for the window after suppressOthersCuesBriefly", () => {
