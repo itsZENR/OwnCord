@@ -12,7 +12,12 @@ export interface UpdateNotifierOptions {
   readonly serverUrl: string;
 }
 
-export function createUpdateNotifier(options: UpdateNotifierOptions): MountableComponent {
+export interface UpdateNotifierComponent extends MountableComponent {
+  /** Re-run the update check immediately (e.g. on a server client_update push). */
+  checkNow(): void;
+}
+
+export function createUpdateNotifier(options: UpdateNotifierOptions): UpdateNotifierComponent {
   const { serverUrl } = options;
   let container: Element | null = null;
   let banner: HTMLDivElement | null = null;
@@ -97,5 +102,12 @@ export function createUpdateNotifier(options: UpdateNotifierOptions): MountableC
     container = null;
   }
 
-  return { mount, destroy };
+  function checkNow(): void {
+    // A newly announced release should re-prompt even if a prior banner was
+    // dismissed this session.
+    dismissed = false;
+    void performCheck();
+  }
+
+  return { mount, destroy, checkNow };
 }

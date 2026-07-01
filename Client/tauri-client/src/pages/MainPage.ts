@@ -384,6 +384,19 @@ export function createMainPage(options: MainPageOptions): MountableComponent {
       const updateNotifier = createUpdateNotifier({ serverUrl });
       updateNotifier.mount(root);
       children.push(updateNotifier);
+      // The server broadcasts client_update when a newer desktop release
+      // appears — re-check immediately so already-connected clients get the
+      // prompt without waiting for an app restart. (On web the check is a
+      // no-op, so this does nothing there.)
+      unsubscribers.push(
+        ws.on("client_update", () => {
+          try {
+            updateNotifier.checkNow();
+          } catch (err) {
+            log.error("client_update handler error", err);
+          }
+        }),
+      );
     }
 
     container.appendChild(root);

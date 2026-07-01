@@ -350,6 +350,12 @@ func (h *Hub) BroadcastServerRestart(reason string, delaySeconds int) {
 	h.BroadcastToAll(buildServerRestartMsg(reason, delaySeconds))
 }
 
+// BroadcastClientUpdate sends a client_update message to all connected clients,
+// announcing that a newer desktop client version is available.
+func (h *Hub) BroadcastClientUpdate(version, notes string) {
+	h.BroadcastToAll(buildClientUpdateMsg(version, notes))
+}
+
 // BroadcastChannelCreate sends a channel_create message to all connected clients.
 func (h *Hub) BroadcastChannelCreate(ch *db.Channel) {
 	h.BroadcastToAll(buildChannelCreate(ch))

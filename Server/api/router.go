@@ -175,6 +175,10 @@ func NewRouter(cfg *config.Config, database *db.DB, ver string, logBuf *admin.Ri
 	// Client auto-update endpoint (unauthenticated).
 	MountClientUpdateRoute(r, u)
 
+	// Watch for new desktop client releases and notify connected clients so
+	// they can self-update without waiting for an app restart.
+	updatePollerStop := startClientUpdatePoller(u, hub, defaultClientUpdatePollInterval, slog.Default())
+
 	// Public web client: SPA served at root. Registered LAST so it does not
 	// shadow /api/v1/*, /admin, or /health.
 	r.Mount("/", webapp.NewHandler())
@@ -189,6 +193,7 @@ func NewRouter(cfg *config.Config, database *db.DB, ver string, logBuf *admin.Ri
 
 	cleanup := func() {
 		close(limiterStopCh)
+		updatePollerStop()
 	}
 
 	return r, hub, cleanup

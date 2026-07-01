@@ -50,6 +50,7 @@ const (
 	MsgTypeMemberUpdate   = "member_update"
 	MsgTypeMemberBan      = "member_ban"
 	MsgTypeServerRestart  = "server_restart"
+	MsgTypeClientUpdate   = "client_update"
 	MsgTypeError          = "error"
 	MsgTypePong           = "pong"
 	MsgTypeDMChannelOpen  = "dm_channel_open"

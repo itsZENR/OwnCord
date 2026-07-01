@@ -33,6 +33,7 @@ export const ServerMessageType = {
   MEMBER_UPDATE: "member_update",
   MEMBER_BAN: "member_ban",
   SERVER_RESTART: "server_restart",
+  CLIENT_UPDATE: "client_update",
   ERROR: "error",
   // Extensions (not in protocol-schema.json but used in practice)
   PONG: "pong",

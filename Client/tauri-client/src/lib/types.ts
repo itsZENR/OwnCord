@@ -340,6 +340,11 @@ export interface ServerRestartPayload {
   readonly delay_seconds: number;
 }
 
+export interface ClientUpdatePayload {
+  readonly version: string;
+  readonly notes?: string;
+}
+
 export interface ErrorPayload {
   readonly code: WsErrorCode;
   readonly message: string;
@@ -449,6 +454,7 @@ export type ServerMessage =
   | (WsEnvelope<DmChannelOpenPayload> & { readonly type: "dm_channel_open" })
   | (WsEnvelope<DmChannelClosePayload> & { readonly type: "dm_channel_close" })
   | (WsEnvelope<ServerRestartPayload> & { readonly type: "server_restart" })
+  | (WsEnvelope<ClientUpdatePayload> & { readonly type: "client_update" })
   | (WsEnvelope<ErrorPayload> & { readonly type: "error" });
 
 // -----------------------------------------------------------------------------

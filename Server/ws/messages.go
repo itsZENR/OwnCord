@@ -464,6 +464,24 @@ func buildServerRestartMsg(reason string, delaySeconds int) []byte {
 	})
 }
 
+// clientUpdatePayload announces that a newer desktop client version is
+// available. Distinct from server_restart (which means "reconnect").
+type clientUpdatePayload struct {
+	Version string `json:"version"`
+	Notes   string `json:"notes,omitempty"`
+}
+
+// buildClientUpdateMsg constructs a client_update broadcast.
+func buildClientUpdateMsg(version, notes string) []byte {
+	return buildJSON(wsMsg{
+		Type: MsgTypeClientUpdate,
+		Payload: clientUpdatePayload{
+			Version: version,
+			Notes:   notes,
+		},
+	})
+}
+
 // parseChannelID safely extracts channel_id from a raw payload map.
 func parseChannelID(payload json.RawMessage) (int64, error) {
 	var p struct {
