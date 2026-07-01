@@ -15,6 +15,7 @@ import {
   playCameraOffSound,
   playScreenshareOnSound,
   playScreenshareOffSound,
+  primeVoiceAudio,
 } from "@lib/voiceSounds";
 import {
   voiceStore,
@@ -147,6 +148,10 @@ export function createSidebarVoiceCallbacks(ws: WsClient): SidebarVoiceCallbacks
   return {
     onVoiceJoin: (channelId: number) => {
       log.info("Joining voice channel", { channelId });
+      // Warm the audio context inside this click gesture so the join cue (which
+      // plays later, after the async token round-trip) is not silenced by a
+      // suspended context.
+      primeVoiceAudio();
       joinVoiceChannel(channelId);
       ws.send({ type: "voice_join", payload: { channel_id: channelId } });
     },

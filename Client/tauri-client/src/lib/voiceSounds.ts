@@ -23,10 +23,22 @@ function getCtx(): AudioContext | null {
       if (Ctor === undefined) return null;
       ctx = new Ctor();
     }
-    if (ctx.state === "suspended") void ctx.resume();
     return ctx;
   } catch {
     return null;
+  }
+}
+
+/**
+ * Warm up the audio context from a user gesture (e.g. clicking a voice channel)
+ * so it is already "running" by the time an async event (join, etc.) plays a
+ * cue. Autoplay policies keep a context created off-gesture "suspended", and a
+ * cue scheduled while suspended is silent — hence sounds not always playing.
+ */
+export function primeVoiceAudio(): void {
+  const audio = getCtx();
+  if (audio !== null && audio.state === "suspended") {
+    audio.resume().catch(() => { /* best-effort */ });
   }
 }
 
@@ -50,29 +62,42 @@ function playBlip(freqs: readonly number[], opts: BlipOptions = {}): void {
   const masterGain = opts.gain ?? DEFAULT_GAIN;
   const noteDur = opts.noteDuration ?? DEFAULT_NOTE_DURATION;
   const gap = opts.gap ?? DEFAULT_GAP;
-  try {
-    const now = audio.currentTime;
-    const master = audio.createGain();
-    master.gain.value = masterGain;
-    master.connect(audio.destination);
 
-    freqs.forEach((freq, i) => {
-      const start = now + i * gap;
-      const osc = audio.createOscillator();
-      const env = audio.createGain();
-      osc.type = "sine";
-      osc.frequency.value = freq;
-      // Quick attack, exponential decay — avoids clicks at note edges.
-      env.gain.setValueAtTime(0.0001, start);
-      env.gain.exponentialRampToValueAtTime(1, start + 0.012);
-      env.gain.exponentialRampToValueAtTime(0.0001, start + noteDur);
-      osc.connect(env);
-      env.connect(master);
-      osc.start(start);
-      osc.stop(start + noteDur + 0.02);
-    });
-  } catch (err) {
-    log.debug("Failed to play voice sound", err);
+  const schedule = (): void => {
+    try {
+      const now = audio.currentTime;
+      const master = audio.createGain();
+      master.gain.value = masterGain;
+      master.connect(audio.destination);
+
+      freqs.forEach((freq, i) => {
+        const start = now + i * gap;
+        const osc = audio.createOscillator();
+        const env = audio.createGain();
+        osc.type = "sine";
+        osc.frequency.value = freq;
+        // Quick attack, exponential decay — avoids clicks at note edges.
+        env.gain.setValueAtTime(0.0001, start);
+        env.gain.exponentialRampToValueAtTime(1, start + 0.012);
+        env.gain.exponentialRampToValueAtTime(0.0001, start + noteDur);
+        osc.connect(env);
+        env.connect(master);
+        osc.start(start);
+        osc.stop(start + noteDur + 0.02);
+      });
+    } catch (err) {
+      log.debug("Failed to play voice sound", err);
+    }
+  };
+
+  // A cue scheduled while the context is suspended is silent. Resume first and
+  // schedule the notes only once the context is actually running, so the notes
+  // are never scheduled in the past.
+  if (audio.state === "suspended") {
+    log.debug("voice sound: context suspended, resuming before play");
+    audio.resume().then(schedule).catch((err) => log.debug("voice sound: resume failed", err));
+  } else {
+    schedule();
   }
 }
 

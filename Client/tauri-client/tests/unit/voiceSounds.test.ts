@@ -32,7 +32,7 @@ class FakeAudioContext {
   state = "running";
   currentTime = 0;
   destination = {};
-  resume = vi.fn();
+  resume = vi.fn().mockResolvedValue(undefined);
   createGain() { const g = new FakeGain(); FakeAudioContext.gains.push(g); return g; }
   createOscillator() { const o = new FakeOsc(); FakeAudioContext.oscillators.push(o); return o; }
 }
