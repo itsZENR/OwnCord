@@ -22,7 +22,7 @@ import (
 
 const (
 	defaultBaseURL  = "https://api.github.com"
-	cacheTTL        = 1 * time.Hour
+	cacheTTL        = 10 * time.Minute
 	errorCacheTTL   = 5 * time.Minute
 	binaryAsset     = "chatserver.exe"
 	checksumAsset   = "checksums.sha256"

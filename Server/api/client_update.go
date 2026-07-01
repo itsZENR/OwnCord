@@ -74,15 +74,29 @@ func handleClientUpdate(u *updater.Updater) http.HandlerFunc {
 			return
 		}
 
+		// The Tauri updater looks up its own target key in `platforms` — for a
+		// Windows x64 NSIS build that is "windows-x86_64-nsis" (and it falls
+		// back to "windows-x86_64"). It does NOT necessarily request with that
+		// exact string in the URL (observed: it requests target "windows"), so
+		// keying the response only by the requested target makes the updater
+		// report "none of the fallback platforms were found". Publish all the
+		// keys it may look for, plus the requested target for good measure.
+		entry := tauriPlatformResponse{
+			Signature: strings.TrimSpace(sigContent),
+			URL:       nsisURL,
+		}
+		platforms := map[string]tauriPlatformResponse{
+			"windows-x86_64":      entry,
+			"windows-x86_64-nsis": entry,
+		}
+		if target != "" {
+			platforms[target] = entry
+		}
+
 		resp := tauriUpdateResponse{
-			Version: strings.TrimPrefix(info.Latest, "v"),
-			Notes:   info.ReleaseNotes,
-			Platforms: map[string]tauriPlatformResponse{
-				target: {
-					Signature: strings.TrimSpace(sigContent),
-					URL:       nsisURL,
-				},
-			},
+			Version:   strings.TrimPrefix(info.Latest, "v"),
+			Notes:     info.ReleaseNotes,
+			Platforms: platforms,
 		}
 
 		writeJSON(w, http.StatusOK, resp)
