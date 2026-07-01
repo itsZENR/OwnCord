@@ -28,7 +28,16 @@ export function createTauriWsTransport(): WsTransport {
     invoke = core.invoke;
     listen = event.listen;
     unsubs.push(await listen("ws-message", (e) => onMessageCb?.(e.payload as string)));
-    unsubs.push(await listen("ws-state", (e) => onStateCb?.((e.payload as string) === "open")));
+    unsubs.push(await listen("ws-state", (e) => {
+      // The Rust proxy emits "connecting", "open", and "closed". Only the
+      // terminal states drive the connection machine — treating the
+      // transitional "connecting" as not-open would fire a spurious reconnect
+      // (which then opens a duplicate proxy connection the server kicks,
+      // producing an endless reconnect loop). Ignore anything but open/closed.
+      const state = e.payload as string;
+      if (state === "open") onStateCb?.(true);
+      else if (state === "closed") onStateCb?.(false);
+    }));
     unsubs.push(await listen("ws-error", (e) => onErrorCb?.(e.payload)));
     unsubs.push(await listen("cert-tofu", (e) => {
       const raw = e.payload as CertTofuEvent;
