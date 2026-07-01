@@ -33,7 +33,12 @@ import { loadPref } from "@components/settings/helpers";
 import { createLogger } from "@lib/logger";
 import { invoke } from "@tauri-apps/api/core";
 import { isTauri } from "./platform/index";
-import { playVoiceJoinSound } from "@lib/voiceSounds";
+import {
+  playVoiceJoinSound,
+  playReconnectSound,
+  playDisconnectSound,
+  suppressOthersCuesBriefly,
+} from "@lib/voiceSounds";
 import { AudioPipeline } from "@lib/audioPipeline";
 import { AudioElements } from "@lib/audioElements";
 import { DeviceManager } from "@lib/deviceManager";
@@ -208,6 +213,7 @@ export class LiveKitSession {
     });
     newRoom.on(RoomEvent.Reconnected, () => {
       log.info("LiveKit room reconnected");
+      playReconnectSound();
     });
     newRoom.on(RoomEvent.SignalReconnecting, () => {
       log.debug("LiveKit signal reconnecting");
@@ -341,6 +347,8 @@ export class LiveKitSession {
       return;
     }
     const isUnexpected = reason !== DisconnectReason.CLIENT_INITIATED;
+    // Cue the connection loss (the intentional-leave cue is played by the UI).
+    if (isUnexpected) playDisconnectSound();
     if (isUnexpected && this.latestToken !== null && this.currentChannelId !== null && this.lastUrl !== null) {
       // Attempt auto-reconnect with stored token before giving up.
       const token = this.latestToken;
@@ -389,6 +397,7 @@ export class LiveKitSession {
         const resolvedUrl = await this.resolveLiveKitUrl(url, directUrl);
         await this.room.connect(resolvedUrl, token);
         log.info("Auto-reconnect succeeded", { attempt, channelId, url: resolvedUrl });
+        playReconnectSound();
         this.logIceConnectionInfo();
         this.room.startAudio().catch((err) => log.debug("Failed to start audio after reconnect", err));
         await this.restoreLocalVoiceState("reconnect");
@@ -715,6 +724,9 @@ export class LiveKitSession {
         // Play the join cue only on a fresh connect (this path), never on
         // reconnects or token refreshes — matches Discord's behavior.
         playVoiceJoinSound();
+        // Keep "user joined/left" cues silent while the server replays the
+        // existing participants for this channel.
+        suppressOthersCuesBriefly();
       }
     } catch (err) {
       log.error("Failed to connect to LiveKit", { url: resolvedUrl, error: err });

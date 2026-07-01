@@ -1,5 +1,11 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
-import { playVoiceJoinSound } from "../../src/lib/voiceSounds";
+import {
+  playVoiceJoinSound,
+  playVoiceLeaveSound,
+  playMuteSound,
+  playUserJoinedSound,
+  suppressOthersCuesBriefly,
+} from "../../src/lib/voiceSounds";
 
 // Minimal Web Audio API mock that records what was scheduled.
 class FakeParam {
@@ -56,5 +62,32 @@ describe("playVoiceJoinSound", () => {
   it("does not throw when the Web Audio API is unavailable", () => {
     vi.stubGlobal("AudioContext", undefined);
     expect(() => playVoiceJoinSound()).not.toThrow();
+  });
+
+  it("plays the leave cue as the descending inverse of join", () => {
+    playVoiceLeaveSound();
+    const freqs = FakeAudioContext.oscillators.map((o) => o.frequency.value);
+    expect(freqs).toEqual([880, 587.33]);
+    expect(freqs[1]!).toBeLessThan(freqs[0]!); // descending
+  });
+
+  it("plays the mute cue as a single note", () => {
+    playMuteSound();
+    expect(FakeAudioContext.oscillators).toHaveLength(1);
+  });
+
+  it("suppresses 'user joined' cues for the window after suppressOthersCuesBriefly", () => {
+    vi.useFakeTimers();
+    try {
+      suppressOthersCuesBriefly();
+      playUserJoinedSound();
+      expect(FakeAudioContext.oscillators).toHaveLength(0); // suppressed
+
+      vi.advanceTimersByTime(1600); // window elapses
+      playUserJoinedSound();
+      expect(FakeAudioContext.oscillators.length).toBeGreaterThan(0); // now audible
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

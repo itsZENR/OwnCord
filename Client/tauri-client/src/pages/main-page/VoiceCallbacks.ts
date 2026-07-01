@@ -6,6 +6,13 @@
 import { createLogger } from "@lib/logger";
 import type { WsClient } from "@lib/ws";
 import {
+  playMuteSound,
+  playUnmuteSound,
+  playDeafenSound,
+  playUndeafenSound,
+  playVoiceLeaveSound,
+} from "@lib/voiceSounds";
+import {
   voiceStore,
   joinVoiceChannel,
   leaveVoiceChannel,
@@ -56,6 +63,7 @@ export function createVoiceWidgetCallbacks(
     onDisconnect: () => {
       if (voiceStore.getState().currentChannelId === null) return;
       log.info("Leaving voice channel (widget disconnect)");
+      playVoiceLeaveSound();
       voiceSessionLeave(false);
       leaveVoiceChannel();
       ws.send({ type: "voice_leave", payload: {} });
@@ -64,6 +72,7 @@ export function createVoiceWidgetCallbacks(
       if (!limiters.voice.tryConsume()) return;
       const state = voiceStore.getState();
       if (state.localMuted) {
+        playUnmuteSound();
         voiceSessionSetMuted(false);
         ws.send({ type: "voice_mute", payload: { muted: false } });
         if (state.localDeafened) {
@@ -71,6 +80,7 @@ export function createVoiceWidgetCallbacks(
           ws.send({ type: "voice_deafen", payload: { deafened: false } });
         }
       } else {
+        playMuteSound();
         voiceSessionSetMuted(true);
         ws.send({ type: "voice_mute", payload: { muted: true } });
       }
@@ -79,11 +89,13 @@ export function createVoiceWidgetCallbacks(
       if (!limiters.voice.tryConsume()) return;
       const state = voiceStore.getState();
       if (state.localDeafened) {
+        playUndeafenSound();
         voiceSessionSetDeafened(false);
         ws.send({ type: "voice_deafen", payload: { deafened: false } });
         voiceSessionSetMuted(false);
         ws.send({ type: "voice_mute", payload: { muted: false } });
       } else {
+        playDeafenSound();
         voiceSessionSetDeafened(true);
         ws.send({ type: "voice_deafen", payload: { deafened: true } });
         if (!state.localMuted) {

@@ -1,7 +1,7 @@
 // Synthesized voice-channel UI sounds. No audio assets are bundled — the tones
 // are generated with the Web Audio API, which works identically in the browser
-// and the Tauri webview. Joining voice is always user-initiated (a click), so
-// browser autoplay policies do not block playback.
+// and the Tauri webview. Every cue is triggered by a user action or a live
+// voice connection, so browser autoplay policies do not block playback.
 import { createLogger } from "./logger";
 
 const log = createLogger("voiceSounds");
@@ -30,23 +30,34 @@ function getCtx(): AudioContext | null {
   }
 }
 
-/** Master volume for UI sounds (kept low so the blip is a cue, not a jolt). */
-const MASTER_GAIN = 0.18;
-const NOTE_DURATION_S = 0.12;
-const NOTE_GAP_S = 0.085;
+interface BlipOptions {
+  /** Master volume for the cue (0–1). Self cues are louder than "others" cues. */
+  readonly gain?: number;
+  /** Per-note duration in seconds. */
+  readonly noteDuration?: number;
+  /** Gap between note onsets in seconds. */
+  readonly gap?: number;
+}
+
+const DEFAULT_GAIN = 0.18;
+const DEFAULT_NOTE_DURATION = 0.12;
+const DEFAULT_GAP = 0.085;
 
 /** Play a sequence of short sine-tone notes through the shared context. */
-function playBlip(freqs: readonly number[]): void {
+function playBlip(freqs: readonly number[], opts: BlipOptions = {}): void {
   const audio = getCtx();
   if (audio === null) return;
+  const masterGain = opts.gain ?? DEFAULT_GAIN;
+  const noteDur = opts.noteDuration ?? DEFAULT_NOTE_DURATION;
+  const gap = opts.gap ?? DEFAULT_GAP;
   try {
     const now = audio.currentTime;
     const master = audio.createGain();
-    master.gain.value = MASTER_GAIN;
+    master.gain.value = masterGain;
     master.connect(audio.destination);
 
     freqs.forEach((freq, i) => {
-      const start = now + i * NOTE_GAP_S;
+      const start = now + i * gap;
       const osc = audio.createOscillator();
       const env = audio.createGain();
       osc.type = "sine";
@@ -54,19 +65,96 @@ function playBlip(freqs: readonly number[]): void {
       // Quick attack, exponential decay — avoids clicks at note edges.
       env.gain.setValueAtTime(0.0001, start);
       env.gain.exponentialRampToValueAtTime(1, start + 0.012);
-      env.gain.exponentialRampToValueAtTime(0.0001, start + NOTE_DURATION_S);
+      env.gain.exponentialRampToValueAtTime(0.0001, start + noteDur);
       osc.connect(env);
       env.connect(master);
       osc.start(start);
-      osc.stop(start + NOTE_DURATION_S + 0.02);
+      osc.stop(start + noteDur + 0.02);
     });
   } catch (err) {
     log.debug("Failed to play voice sound", err);
   }
 }
 
-/** Ascending two-note cue played when the local user connects to a voice
- * channel (Discord-style join blip). */
+// Note frequencies (Hz).
+const D5 = 587.33;
+const A5 = 880;
+const A4 = 440;
+const E5 = 659.25;
+const C5 = 523.25;
+const G5 = 783.99;
+const C6 = 1046.5;
+const D4 = 293.66;
+
+// --- Self cues (louder) ---
+
+/** Ascending two-note cue when the local user connects to a voice channel. */
 export function playVoiceJoinSound(): void {
-  playBlip([587.33, 880]); // D5 → A5
+  playBlip([D5, A5]);
+}
+
+/** Descending two-note cue when the local user leaves a voice channel. */
+export function playVoiceLeaveSound(): void {
+  playBlip([A5, D5]);
+}
+
+/** Short low note when the local user mutes their mic. */
+export function playMuteSound(): void {
+  playBlip([A4], { noteDuration: 0.1 });
+}
+
+/** Short higher note when the local user unmutes their mic. */
+export function playUnmuteSound(): void {
+  playBlip([E5], { noteDuration: 0.1 });
+}
+
+/** Descending pair when the local user deafens. */
+export function playDeafenSound(): void {
+  playBlip([D5, A4]);
+}
+
+/** Ascending pair when the local user undeafens. */
+export function playUndeafenSound(): void {
+  playBlip([A4, D5]);
+}
+
+/** Quick rising triple when the voice connection is recovered. */
+export function playReconnectSound(): void {
+  playBlip([C5, E5, G5], { gap: 0.07, noteDuration: 0.1 });
+}
+
+/** Low descending cue when the voice connection is unexpectedly lost. */
+export function playDisconnectSound(): void {
+  playBlip([A4, D4], { noteDuration: 0.16, gap: 0.11 });
+}
+
+// --- Others cues (quieter, higher, lighter) ---
+
+const OTHERS_GAIN = 0.1;
+const OTHERS_NOTE = 0.08;
+
+/** Light rising blip when another user joins the local user's voice channel. */
+export function playUserJoinedSound(): void {
+  if (othersSuppressed) return;
+  playBlip([G5, C6], { gain: OTHERS_GAIN, noteDuration: OTHERS_NOTE, gap: 0.06 });
+}
+
+/** Light falling blip when another user leaves the local user's voice channel. */
+export function playUserLeftSound(): void {
+  if (othersSuppressed) return;
+  playBlip([C6, G5], { gain: OTHERS_GAIN, noteDuration: OTHERS_NOTE, gap: 0.06 });
+}
+
+// The server replays every existing participant's voice_state to a joiner. To
+// avoid a burst of "user joined" cues on channel entry, suppress the others
+// cues for a short window right after the local user joins.
+let othersSuppressed = false;
+let othersSuppressTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** Suppress "user joined/left" cues briefly (call when the local user joins a
+ * voice channel, so the initial participant sync stays silent). */
+export function suppressOthersCuesBriefly(): void {
+  othersSuppressed = true;
+  if (othersSuppressTimer !== null) clearTimeout(othersSuppressTimer);
+  othersSuppressTimer = setTimeout(() => { othersSuppressed = false; othersSuppressTimer = null; }, 1500);
 }

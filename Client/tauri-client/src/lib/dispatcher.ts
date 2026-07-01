@@ -31,6 +31,7 @@ import {
   setTyping,
 } from "@stores/members.store";
 import {
+  voiceStore,
   setVoiceStates,
   updateVoiceState,
   removeVoiceUser,
@@ -39,6 +40,7 @@ import {
   joinVoiceChannel,
   leaveVoiceChannel,
 } from "@stores/voice.store";
+import { playUserJoinedSound, playUserLeftSound } from "@lib/voiceSounds";
 import {
   dmStore,
   setDmChannels,
@@ -320,22 +322,31 @@ export function wireDispatcher(ws: WsClient): DispatcherCleanup {
 
   unsubs.push(
     ws.on(S.VOICE_STATE, (payload) => {
-      updateVoiceState(payload);
-      // Auto-join voice channel if the event is for the current user
+      const before = voiceStore.getState();
       const currentUserId = authStore.getState().user?.id ?? 0;
+      const wasPresent = before.voiceUsers.get(payload.channel_id)?.has(payload.user_id) ?? false;
+      updateVoiceState(payload);
       if (payload.user_id === currentUserId) {
         joinVoiceChannel(payload.channel_id);
+      } else if (!wasPresent && payload.channel_id === before.currentChannelId) {
+        // Another user just entered the channel we're in.
+        playUserJoinedSound();
       }
     }),
   );
 
   unsubs.push(
     ws.on(S.VOICE_LEAVE, (payload) => {
-      removeVoiceUser(payload);
-      // Clear local voice state if the current user was removed (kick/disconnect)
+      const before = voiceStore.getState();
       const currentUserId = authStore.getState().user?.id ?? 0;
+      const wasInMyChannel = payload.channel_id === before.currentChannelId
+        && (before.voiceUsers.get(payload.channel_id)?.has(payload.user_id) ?? false);
+      removeVoiceUser(payload);
       if (payload.user_id === currentUserId) {
         leaveVoiceChannel();
+      } else if (wasInMyChannel) {
+        // Another user left the channel we're in.
+        playUserLeftSound();
       }
     }),
   );
