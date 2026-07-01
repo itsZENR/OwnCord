@@ -35,6 +35,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { isTauri } from "./platform/index";
 import {
   playVoiceJoinSound,
+  playVoiceLeaveSound,
   playReconnectSound,
   playDisconnectSound,
   suppressOthersCuesBriefly,
@@ -638,7 +639,13 @@ export class LiveKitSession {
       log.warn("handleVoiceToken: already connecting, queued latest join request", { channelId });
       return;
     }
-    if (this.room !== null) this.leaveVoice(false);
+    if (this.room !== null) {
+      // Switching channels: cue leaving the previous channel (the join cue for
+      // the new one plays once connected). leaveVoice() itself stays silent so
+      // reconnect/cleanup paths don't play a leave cue.
+      playVoiceLeaveSound();
+      this.leaveVoice(false);
+    }
     this.connecting = true;
     let resolvedUrl = "";
     try {
