@@ -362,10 +362,12 @@ func (u *Updater) FindClientAssets() ClientAssets {
 
 	var ca ClientAssets
 	for _, a := range u.cache.Assets {
+		// Tauri v2's NSIS updater artifact is the -setup.exe itself, with the
+		// signature in a sibling -setup.exe.sig (there is no .nsis.zip).
 		switch {
-		case strings.HasSuffix(a.Name, "_x64-setup.nsis.zip.sig"):
+		case strings.HasSuffix(a.Name, "_x64-setup.exe.sig"):
 			ca.SignatureURL = a.DownloadURL
-		case strings.HasSuffix(a.Name, "_x64-setup.nsis.zip"):
+		case strings.HasSuffix(a.Name, "_x64-setup.exe"):
 			ca.InstallerURL = a.DownloadURL
 		}
 	}

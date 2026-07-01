@@ -111,10 +111,12 @@ jobs:
           INSTALLER=$(find "$NSIS_DIR" -name "*.exe" | head -1)
           echo "installer_path=$INSTALLER" >> "$GITHUB_OUTPUT"
           echo "installer_name=$(basename $INSTALLER)" >> "$GITHUB_OUTPUT"
-          # Updater artifacts (produced when TAURI_SIGNING_PRIVATE_KEY is set)
-          NSIS_ZIP=$(find "$NSIS_DIR" -name "*_x64-setup.nsis.zip" ! -name "*.sig" | head -1)
-          NSIS_SIG=$(find "$NSIS_DIR" -name "*_x64-setup.nsis.zip.sig" | head -1)
-          echo "nsis_zip=${NSIS_ZIP:-}" >> "$GITHUB_OUTPUT"
+          # Updater artifacts (produced when TAURI_SIGNING_PRIVATE_KEY is set).
+          # Tauri v2's NSIS updater artifact is the -setup.exe itself (already
+          # located above as the installer); its detached signature is a
+          # sibling -setup.exe.sig. There is no .nsis.zip.
+          NSIS_SIG=$(find "$NSIS_DIR" -name "*_x64-setup.exe.sig" | head -1)
+          echo "nsis_zip=" >> "$GITHUB_OUTPUT"
           echo "nsis_sig=${NSIS_SIG:-}" >> "$GITHUB_OUTPUT"
 
       - name: Generate SHA256 checksums

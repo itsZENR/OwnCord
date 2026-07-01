@@ -30,6 +30,10 @@ type Config struct {
 // GitHubConfig holds GitHub API settings for update checking.
 type GitHubConfig struct {
 	Token string `koanf:"token"`
+	// Owner and Repo identify the GitHub repository whose releases are used
+	// for server and client update checks. Default: itsZENR/OwnCord.
+	Owner string `koanf:"owner"`
+	Repo  string `koanf:"repo"`
 }
 
 // VoiceConfig holds LiveKit server connection and voice quality settings.
@@ -107,7 +111,7 @@ func defaults() Config {
 			LiveKitURL: "ws://localhost:7880",
 			Quality:    "medium",
 		},
-		GitHub: GitHubConfig{},
+		GitHub: GitHubConfig{Owner: "itsZENR", Repo: "OwnCord"},
 	}
 }
 
