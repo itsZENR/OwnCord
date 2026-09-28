@@ -64,6 +64,13 @@ jobs:
         working-directory: Server
         run: go test ./...
 
+      - name: Test native push-to-talk shortcuts
+        working-directory: Client/tauri-client/src-tauri
+        run: |
+          rustc --test src/ptt_key_state.rs -o ptt-key-tests.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ./ptt-key-tests.exe
+
       - name: Build web client bundle
         working-directory: Client/tauri-client
         run: npm run build:web

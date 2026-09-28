@@ -13,34 +13,66 @@ import { isTauri } from "./platform/index";
 const log = createLogger("ptt");
 
 let listening = false;
+let unlistenPtt: (() => void) | null = null;
+let activeChannelId: number | null = null;
 
-// Minimal VK -> KeyboardEvent.code map for common PTT keys. Extend as needed.
 const VK_TO_CODE: Record<number, string> = {
-  0x41: "KeyA", 0x42: "KeyB", 0x43: "KeyC", 0x44: "KeyD", 0x45: "KeyE",
-  0x46: "KeyF", 0x47: "KeyG", 0x56: "KeyV", 0x58: "KeyX", 0x5A: "KeyZ",
+  ...Object.fromEntries(Array.from({ length: 26 }, (_, i) => [0x41 + i, `Key${String.fromCharCode(65 + i)}`])),
+  ...Object.fromEntries(Array.from({ length: 10 }, (_, i) => [0x30 + i, `Digit${i}`])),
+  ...Object.fromEntries(Array.from({ length: 10 }, (_, i) => [0x60 + i, `Numpad${i}`])),
+  ...Object.fromEntries(Array.from({ length: 24 }, (_, i) => [0x70 + i, `F${i + 1}`])),
+  0x08: "Backspace", 0x09: "Tab", 0x0D: "Enter", 0x1B: "Escape",
   0x20: "Space", 0x11: "ControlLeft", 0x10: "ShiftLeft", 0x12: "AltLeft",
+  0x21: "PageUp", 0x22: "PageDown", 0x23: "End", 0x24: "Home",
+  0x25: "ArrowLeft", 0x26: "ArrowUp", 0x27: "ArrowRight", 0x28: "ArrowDown",
+  0x2D: "Insert", 0x2E: "Delete", 0xC0: "Backquote", 0xBD: "Minus",
+  0xBB: "Equal", 0xDB: "BracketLeft", 0xDD: "BracketRight", 0xDC: "Backslash",
+  0xBA: "Semicolon", 0xDE: "Quote", 0xBC: "Comma", 0xBE: "Period", 0xBF: "Slash",
 };
 
 // Web PTT only fires while the browser tab has focus (no OS-global hook).
-// This is an intentional degradation for the browser build vs. the desktop build.
-let webKeyCode = "KeyV";
+let webKeyCode: string | undefined;
 let webDown: ((e: KeyboardEvent) => void) | null = null;
 let webUp: ((e: KeyboardEvent) => void) | null = null;
 
-function webInit(): void {
-  if (webDown || webUp) return; // already initialised — avoid leaking listeners
+function isEditing(target: EventTarget | null): boolean {
+  return target instanceof HTMLElement && !!target.closest(
+    'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"]',
+  );
+}
+
+function pressPtt(): void {
+  const channelId = voiceStore.getState().currentChannelId;
+  if (channelId === null || activeChannelId !== null) return;
+  activeChannelId = channelId;
+  setMuted(false);
+}
+
+function releasePtt(): void {
+  const channelId = activeChannelId;
+  activeChannelId = null;
+  // An unrelated key release must never change microphone state.
+  if (channelId !== null && channelId === voiceStore.getState().currentChannelId) setMuted(true);
+}
+
+function webInit(vk: number): void {
+  webKeyCode = VK_TO_CODE[vk];
+  if (!webKeyCode || webDown || webUp) return;
   webDown = (e: KeyboardEvent) => {
+    const shortcut = (e.ctrlKey && vk !== 0x11) || (e.shiftKey && vk !== 0x10)
+      || (e.altKey && vk !== 0x12) || e.metaKey;
+    if (shortcut) { releasePtt(); return; }
     if (e.code !== webKeyCode) return;
-    if (voiceStore.getState().currentChannelId === null) return;
-    setMuted(false);
+    if (e.repeat || e.isComposing || isEditing(e.target) || isEditing(document.activeElement)) return;
+    pressPtt();
   };
   webUp = (e: KeyboardEvent) => {
     if (e.code !== webKeyCode) return;
-    if (voiceStore.getState().currentChannelId === null) return;
-    setMuted(true);
+    releasePtt();
   };
   window.addEventListener("keydown", webDown);
   window.addEventListener("keyup", webUp);
+  window.addEventListener("blur", releasePtt);
 }
 
 // Well-known virtual key code names for display
@@ -75,31 +107,28 @@ export function vkName(vk: number): string {
 
 /** Start listening for PTT state changes from the Rust backend. */
 export async function initPtt(): Promise<void> {
-  if (!isTauri()) { webInit(); return; }
   const vk = loadPref<number>("pttVk", 0);
   if (vk === 0) return;
+  if (!isTauri()) { webInit(vk); return; }
+  if (listening) return;
 
   try {
     const { invoke } = await import("@tauri-apps/api/core");
     const { listen } = await import("@tauri-apps/api/event");
 
-    // Set the key and start the polling loop
     await invoke("ptt_set_key", { vkCode: vk });
-    await invoke("ptt_start");
 
-    // Listen for press/release events
-    await listen<boolean>("ptt-state", (event) => {
-      // Only toggle mute when in a voice channel
-      const channelId = voiceStore.getState().currentChannelId;
-      if (channelId === null) return;
-
-      setMuted(!event.payload);
-      log.debug(event.payload ? "PTT pressed — unmuted" : "PTT released — muted");
+    unlistenPtt = await listen<boolean>("ptt-state", (event) => {
+      if (!event.payload) { releasePtt(); return; }
+      if (document.hasFocus() && isEditing(document.activeElement)) return;
+      pressPtt();
     });
-
+    await invoke("ptt_start");
     listening = true;
     log.info("PTT started", { vk, name: vkName(vk) });
   } catch (err) {
+    unlistenPtt?.();
+    unlistenPtt = null;
     // Not in Tauri environment (dev mode)
     log.debug("PTT not available", { error: err });
   }
@@ -107,17 +136,22 @@ export async function initPtt(): Promise<void> {
 
 /** Stop PTT polling. */
 export async function stopPtt(): Promise<void> {
+  releasePtt();
   if (!isTauri()) {
     if (webDown) window.removeEventListener("keydown", webDown);
     if (webUp) window.removeEventListener("keyup", webUp);
+    window.removeEventListener("blur", releasePtt);
     webDown = webUp = null;
+    webKeyCode = undefined;
     return;
   }
+  unlistenPtt?.();
+  unlistenPtt = null;
   if (!listening) return;
+  listening = false;
   try {
     const { invoke } = await import("@tauri-apps/api/core");
     await invoke("ptt_stop");
-    listening = false;
     log.info("PTT stopped");
   } catch {
     // ignore
@@ -126,8 +160,13 @@ export async function stopPtt(): Promise<void> {
 
 /** Update the PTT key and restart polling. */
 export async function updatePttKey(vk: number): Promise<void> {
-  if (!isTauri()) { webKeyCode = VK_TO_CODE[vk] ?? "KeyV"; return; }
   savePref("pttVk", vk);
+  releasePtt();
+  if (!isTauri()) {
+    await stopPtt();
+    if (vk !== 0) webInit(vk);
+    return;
+  }
   try {
     const { invoke } = await import("@tauri-apps/api/core");
     await invoke("ptt_set_key", { vkCode: vk });
@@ -150,9 +189,14 @@ export async function captureKeyPress(): Promise<number> {
     return new Promise<number>((resolve) => {
       const onKey = (e: KeyboardEvent) => {
         window.removeEventListener("keydown", onKey);
-        const vk = Number(Object.keys(VK_TO_CODE).find((k) => VK_TO_CODE[Number(k)] === e.code)) || 0x56;
+        clearTimeout(timeout);
+        const vk = Number(Object.keys(VK_TO_CODE).find((k) => VK_TO_CODE[Number(k)] === e.code)) || 0;
         resolve(vk);
       };
+      const timeout = setTimeout(() => {
+        window.removeEventListener("keydown", onKey);
+        resolve(0);
+      }, 10_000);
       window.addEventListener("keydown", onKey);
     });
   }

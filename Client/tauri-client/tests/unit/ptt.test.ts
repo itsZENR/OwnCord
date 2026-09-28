@@ -70,6 +70,10 @@ vi.mock("../../src/lib/platform/index", () => ({ isTauri: () => true }));
 
 import { vkName, initPtt, stopPtt, updatePttKey, captureKeyPress } from "../../src/lib/ptt";
 
+afterEach(async () => {
+  await stopPtt();
+});
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -464,10 +468,6 @@ describe("captureKeyPress", () => {
 describe("ptt-state event listener", () => {
   beforeEach(resetAll);
 
-  afterEach(() => {
-    vi.resetModules();
-  });
-
   it("calls setMuted(false) when PTT is pressed (payload true) and in a voice channel", async () => {
     const { setMuted } = await import("../../src/lib/livekitSession");
     const mockSetMuted = vi.mocked(setMuted);
@@ -506,9 +506,32 @@ describe("ptt-state event listener", () => {
 
     await initPtt();
 
+    capturedCallback!({ payload: true }); // accepted press must precede release
+    mockSetMuted.mockClear();
     capturedCallback!({ payload: false }); // key released
 
     expect(mockSetMuted).toHaveBeenCalledWith(true);
+  });
+
+  it("ignores a release with no accepted press", async () => {
+    const { setMuted } = await import("../../src/lib/livekitSession");
+    vi.mocked(setMuted).mockClear();
+    mockCurrentChannelId = 7;
+    testPrefs.set("pttVk", 0x56);
+    await initPtt();
+    mockListen.mock.calls[0]![1]({ payload: false });
+    expect(setMuted).not.toHaveBeenCalled();
+  });
+
+  it("removes the native event listener when stopped", async () => {
+    const unlisten = vi.fn();
+    mockListen.mockResolvedValue(unlisten);
+    testPrefs.set("pttVk", 0x56);
+    await initPtt();
+    await initPtt();
+    expect(mockListen).toHaveBeenCalledTimes(1);
+    await stopPtt();
+    expect(unlisten).toHaveBeenCalledTimes(1);
   });
 
   it("does not call setMuted when not in a voice channel", async () => {

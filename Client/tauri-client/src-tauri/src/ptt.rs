@@ -8,6 +8,10 @@ use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Runtime};
 
+#[path = "ptt_key_state.rs"]
+mod key_state;
+use key_state::KeyState;
+
 /// Virtual key code for the PTT key. 0 = disabled.
 static PTT_VKEY: AtomicI32 = AtomicI32::new(0);
 /// Whether the polling loop is running.
@@ -34,16 +38,22 @@ pub fn ptt_start<R: Runtime>(app: AppHandle<R>) {
     }
 
     std::thread::spawn(move || {
-        let mut was_pressed = false;
+        let mut state = KeyState::default();
+        let mut previous_vk = 0;
 
         while PTT_RUNNING.load(Ordering::SeqCst) {
             let vk = PTT_VKEY.load(Ordering::SeqCst);
-            if vk != 0 {
-                let pressed = is_key_down(vk);
-                if pressed != was_pressed {
-                    was_pressed = pressed;
+            if vk != previous_vk {
+                if let Some(pressed) = state.update(false, false) {
                     let _ = app.emit("ptt-state", pressed);
                 }
+                previous_vk = vk;
+            }
+            let has_modifier = [0x10, 0x11, 0x12, 0x5B, 0x5C]
+                .iter()
+                .any(|&modifier| modifier != vk && is_key_down(modifier));
+            if let Some(pressed) = state.update(vk != 0 && is_key_down(vk), has_modifier) {
+                let _ = app.emit("ptt-state", pressed);
             }
             std::thread::sleep(Duration::from_millis(20));
         }
