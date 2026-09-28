@@ -1,3 +1,4 @@
+import { t } from "@lib/i18n";
 /**
  * UserBar component — shows current user info at the bottom of the sidebar.
  * Subscribes to authStore for user data. Settings button opens settings overlay.
@@ -65,7 +66,7 @@ export function createUserBar(options?: UserBarOptions): MountableComponent {
 
     const settingsBtn = createElement(
       "button",
-      { title: "Settings", "aria-label": "Settings" },
+      { title: t("Settings", "Настройки"), "aria-label": t("Settings", "Настройки") },
     );
     settingsBtn.appendChild(createIcon("settings", 18));
 

@@ -94,7 +94,7 @@ export function createConnectPage(
       onCredentialLoaded(host: string, username: string, password?: string) {
         // Guard: user may have clicked a different profile while loading
         if (loginForm.getHost() === host) {
-          loginForm.setCredentials(username, password);
+          loginForm.setCredentials(username, password, true);
         }
       },
       onAddProfile: callbacks.onAddProfile,
@@ -208,6 +208,7 @@ export function createConnectPage(
   // ---------------------------------------------------------------------------
 
   let settingsOverlay: ReturnType<typeof createSettingsOverlay> | null = null;
+  let errorCleanup: (() => void) | undefined;
 
   function mount(target: Element): void {
     container = target;
@@ -235,6 +236,9 @@ export function createConnectPage(
       loginForm.showError(pendingError);
       setTransientError(null);
     }
+    errorCleanup = uiStore.subscribeSelector((s) => s.transientError, (error) => {
+      if (error) { loginForm.showError(error); setTransientError(null); }
+    });
 
     // Focus the first input
     loginForm.focusHost();
@@ -243,6 +247,7 @@ export function createConnectPage(
   function destroy(): void {
     // Abort all event listeners registered with the signal
     abortController.abort();
+    errorCleanup?.();
     settingsOverlay?.destroy?.();
     settingsOverlay = null;
 
@@ -277,7 +282,7 @@ export function createConnectPage(
         try {
           const cred = await loadCredential(host);
           if (cred && loginForm.getHost() === host) {
-            loginForm.setCredentials(cred.username, cred.password);
+            loginForm.setCredentials(cred.username, cred.password, true);
           }
         } catch {
           // Credential loading is best-effort; user can type manually

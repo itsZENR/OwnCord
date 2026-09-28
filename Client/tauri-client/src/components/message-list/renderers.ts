@@ -11,6 +11,7 @@ import {
 } from "@lib/dom";
 import { createIcon } from "@lib/icons";
 import { loadPref } from "@components/settings/helpers";
+import { createVoiceRegalia } from "@components/VoiceRegalia";
 import type { Message } from "@stores/messages.store";
 import type { MessageListOptions } from "../MessageList";
 
@@ -158,7 +159,11 @@ export function renderMessage(
     class: "msg-avatar",
     style: `background: ${roleColorVar(role)}`,
   }, initial);
-  el.appendChild(avatar);
+  const avatarStack = createElement("div", { class: "msg-avatar-stack" });
+  avatarStack.appendChild(avatar);
+  const regalia = createVoiceRegalia(msg.user.id);
+  if (regalia !== null) avatarStack.appendChild(regalia);
+  el.appendChild(avatarStack);
 
   if (isGrouped) {
     const hoverTime = createElement("div", {

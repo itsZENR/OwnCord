@@ -55,4 +55,5 @@ const (
 	MsgTypePong           = "pong"
 	MsgTypeDMChannelOpen  = "dm_channel_open"
 	MsgTypeDMChannelClose = "dm_channel_close"
+	MsgTypeCallState      = "call_state"
 )

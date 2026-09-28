@@ -1,3 +1,4 @@
+import { t } from "@lib/i18n";
 /**
  * ChatHeader — builds the channel header bar with name, topic, pins, and search.
  */
@@ -37,8 +38,8 @@ export function buildChatHeader(
   const pinBtn = createElement("button", {
     type: "button",
     class: "pin-btn",
-    title: "Pins",
-    "aria-label": "Pins",
+    title: t("Pins", "Закреплённые сообщения"),
+    "aria-label": t("Pins", "Закреплённые сообщения"),
     "data-testid": "pin-btn",
   });
   pinBtn.appendChild(createIcon("pin", 18));
@@ -46,7 +47,7 @@ export function buildChatHeader(
   const searchInput = createElement("input", {
     class: "search-input",
     type: "search",
-    placeholder: "Search...",
+    placeholder: t("Search...", "Поиск…"),
     // This field is a decorative trigger: focusing it opens the search UI and
     // immediately blurs (see below), so it never accepts typed input. Marking
     // it readonly makes browsers/password-managers skip autofill entirely —

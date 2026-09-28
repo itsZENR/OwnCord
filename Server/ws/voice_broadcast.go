@@ -46,5 +46,5 @@ func (h *Hub) broadcastVoiceStateUpdate(c *Client) {
 	if state == nil {
 		return // user not in a voice channel — nothing to broadcast
 	}
-	h.BroadcastToAll(buildVoiceState(*state))
+	h.broadcastVoiceEvent(state.ChannelID, buildVoiceState(*state))
 }

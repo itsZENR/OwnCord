@@ -51,10 +51,11 @@ import {
 } from "@stores/dm.store";
 import type { DmChannel } from "@stores/dm.store";
 import type { DmChannelPayload } from "./types";
-import { handleVoiceToken } from "@lib/livekitSession";
+import { handleVoiceToken, leaveVoice } from "@lib/livekitSession";
 import { notifyIncomingMessage } from "./notifications";
 import { createLogger } from "./logger";
 import { ServerMessageType as S } from "./protocolTypes";
+import { describeError } from "./i18n";
 
 const log = createLogger("dispatcher");
 
@@ -101,7 +102,7 @@ export function wireDispatcher(ws: WsClient): DispatcherCleanup {
   unsubs.push(
     ws.on(S.AUTH_ERROR, (payload) => {
       log.error("Auth failed", { message: payload.message });
-      setTransientError(payload.message);
+      setTransientError(describeError(payload.message));
       clearAuth();
     }),
   );
@@ -342,7 +343,8 @@ export function wireDispatcher(ws: WsClient): DispatcherCleanup {
       const wasInMyChannel = payload.channel_id === before.currentChannelId
         && (before.voiceUsers.get(payload.channel_id)?.has(payload.user_id) ?? false);
       removeVoiceUser(payload);
-      if (payload.user_id === currentUserId) {
+      if (payload.user_id === currentUserId && (before.currentChannelId === payload.channel_id || payload.channel_id === 0)) {
+        leaveVoice(false);
         leaveVoiceChannel();
       } else if (wasInMyChannel) {
         // Another user left the channel we're in.
@@ -389,13 +391,11 @@ export function wireDispatcher(ws: WsClient): DispatcherCleanup {
       });
       if (payload.code === "BANNED") {
         // Banned users must not reconnect — show error and force logout.
-        setTransientError(payload.message || "You have been banned");
+        setTransientError(describeError(payload.message || "You have been banned", payload.code));
         clearAuth();
         return;
       }
-      if (payload.code === "RATE_LIMITED" || payload.code === "FORBIDDEN") {
-        setTransientError(payload.message || "Server error");
-      }
+      setTransientError(describeError(payload.message || "Server error", payload.code));
     }),
   );
 

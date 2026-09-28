@@ -9,6 +9,7 @@ import type { MountableComponent } from "@lib/safe-render";
 import { messagesStore, getChannelMessages, hasMoreMessages } from "@stores/messages.store";
 import type { Message } from "@stores/messages.store";
 import { membersStore } from "@stores/members.store";
+import { activityStore } from "@stores/activity.store";
 
 const log = createLogger("message-list");
 import {
@@ -568,6 +569,12 @@ export function createMessageList(options: MessageListOptions): MessageListCompo
         for (const [id, m] of s.members) roles.set(id, m.role);
         return roles;
       },
+      () => { renderAll(); },
+    ));
+
+    // Server-wide voice time is shown under each message avatar.
+    unsubscribers.push(activityStore.subscribeSelector(
+      (s) => s.members,
       () => { renderAll(); },
     ));
   }

@@ -83,6 +83,10 @@ func (c *LiveKitClient) GenerateToken(
 	canSubscribe bool,
 ) (string, error) {
 	roomName := RoomName(channelID)
+	return c.generateRoomToken(userID, username, roomName, canPublish, canSubscribe, tokenTTL)
+}
+
+func (c *LiveKitClient) generateRoomToken(userID int64, username, roomName string, canPublish, canSubscribe bool, ttl time.Duration) (string, error) {
 	identity := fmt.Sprintf("user-%d", userID)
 
 	at := auth.NewAccessToken(c.apiKey, c.apiSecret)
@@ -96,7 +100,7 @@ func (c *LiveKitClient) GenerateToken(
 	at.SetVideoGrant(grant).
 		SetIdentity(identity).
 		SetName(username).
-		SetValidFor(tokenTTL)
+		SetValidFor(ttl)
 
 	token, err := at.ToJWT()
 	if err != nil {
@@ -122,6 +126,10 @@ const lkTimeout = 5 * time.Second
 // RemoveParticipant forcefully disconnects a participant from a room.
 func (c *LiveKitClient) RemoveParticipant(channelID int64, userID int64) error {
 	roomName := RoomName(channelID)
+	return c.removeRoomParticipant(roomName, userID)
+}
+
+func (c *LiveKitClient) removeRoomParticipant(roomName string, userID int64) error {
 	identity := fmt.Sprintf("user-%d", userID)
 
 	ctx, cancel := context.WithTimeout(context.Background(), lkTimeout)

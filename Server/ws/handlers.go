@@ -10,6 +10,7 @@ import (
 	"github.com/microcosm-cc/bluemonday"
 	"github.com/owncord/server/auth"
 	"github.com/owncord/server/db"
+	"github.com/owncord/server/permissions"
 )
 
 // Rate limit windows.
@@ -113,6 +114,11 @@ func (h *Hub) handleMessage(c *Client, raw []byte) {
 func (h *Hub) hasChannelPerm(c *Client, channelID int64, perm int64) bool {
 	if c.user == nil {
 		return false
+	}
+	if ch, err := h.db.GetChannel(channelID); err == nil && ch != nil && ch.Type == "dm" {
+		ok, err := h.db.IsDMParticipant(c.userID, channelID)
+		allowed := permissions.ConnectVoice | permissions.SpeakVoice | permissions.UseVideo | permissions.ShareScreen
+		return err == nil && ok && perm != 0 && perm&allowed == perm
 	}
 	role, err := h.db.GetRoleByID(c.user.RoleID)
 	if err != nil || role == nil {

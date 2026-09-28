@@ -740,7 +740,8 @@ export class LiveKitSession {
       if (this.room !== null) {
         this.onErrorCallback?.("Failed to join voice — connection error");
       }
-      this.leaveVoice(false);
+      this.leaveVoice(true);
+      leaveVoiceChannel();
     } finally {
       this.connecting = false;
     }

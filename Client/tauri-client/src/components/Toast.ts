@@ -4,6 +4,7 @@
  */
 
 import { createElement, setText } from "@lib/dom";
+import { describeError } from "@lib/i18n";
 import type { MountableComponent } from "@lib/safe-render";
 
 export type ToastType = "info" | "error" | "success";
@@ -71,7 +72,8 @@ export function createToastContainer(): ToastContainer {
       class: `toast toast-${type}`,
       "data-testid": "toast",
     });
-    setText(el, message);
+    el.setAttribute("role", type === "error" ? "alert" : "status");
+    setText(el, type === "error" ? describeError(message) : message);
 
     const timer = setTimeout(() => {
       const entry = toasts.find((t) => t.el === el);

@@ -23,6 +23,8 @@ type broadcastMsg struct {
 // Hub manages all active WebSocket clients and routes messages between them.
 // All exported methods are safe to call from multiple goroutines.
 type Hub struct {
+	callMu      sync.Mutex
+	calls       map[int64]*directCall
 	clients     map[int64]*Client
 	mu          sync.RWMutex
 	db          *db.DB
@@ -55,9 +57,11 @@ func NewHub(database *db.DB, limiter *auth.RateLimiter) *Hub {
 	registerPresenceHandlers(reg)
 	registerReactionHandlers(reg)
 	registerVoiceHandlers(reg)
+	registerCallHandlers(reg)
 	registerPingHandler(reg)
 
 	h := &Hub{
+		calls:        make(map[int64]*directCall),
 		clients:      make(map[int64]*Client),
 		db:           database,
 		limiter:      limiter,
@@ -182,6 +186,9 @@ func (h *Hub) Run() {
 					h.deliverBroadcast(bm)
 				case <-staleTicker.C:
 					h.sweepStaleClients()
+					if err := h.db.CheckpointVoiceActivity(); err != nil {
+						slog.Error("checkpoint voice activity", "err", err)
+					}
 				}
 			}
 		}()

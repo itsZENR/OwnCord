@@ -56,6 +56,20 @@ describe("ConnectPage", () => {
     container.remove();
   });
 
+  it("restores saved credentials and clears the password when switching servers", async () => {
+    mockLoadCredential.mockResolvedValueOnce({ username: "alice", token: "token", password: "saved-password" });
+    const page = createConnectPage(makeCallbacks(), testProfiles);
+    page.mount(container);
+    page.selectServer("localhost:8443");
+    await vi.waitFor(() => expect(page.getPassword()).toBe("saved-password"));
+    expect(page.getRememberPassword()).toBe(true);
+    page.selectServer("another.example:8443", "bob");
+    expect(page.getPassword()).toBe("");
+    expect(page.getRememberPassword()).toBe(false);
+    expect((container.querySelector("#username") as HTMLInputElement).value).toBe("bob");
+    page.destroy?.();
+  });
+
   it("renders the connect page with form elements", () => {
     const page = createConnectPage(makeCallbacks(), testProfiles);
     page.mount(container);
@@ -571,14 +585,17 @@ describe("ConnectPage", () => {
     verifyBtn.click();
 
     await vi.waitFor(() => {
-      const errorBanner = container.querySelector(".error-banner")!;
-      expect(errorBanner.classList.contains("visible")).toBe(true);
-      expect(errorBanner.textContent).toBe("Invalid TOTP");
+      expect(container.querySelector(".totp-error")!.textContent).toBe("Invalid TOTP");
+      expect(container.querySelector(".totp-overlay")!.classList.contains("totp-overlay--hidden")).toBe(false);
     });
 
     // Verify button should be re-enabled
     expect(verifyBtn.disabled).toBe(false);
     expect(verifyBtn.textContent).toBe("Verify");
+    onTotpSubmit.mockResolvedValueOnce(undefined);
+    totpInput.value = "123456";
+    verifyBtn.click();
+    await vi.waitFor(() => expect(onTotpSubmit).toHaveBeenLastCalledWith("123456"));
 
     page.destroy?.();
   });

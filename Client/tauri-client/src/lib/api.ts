@@ -3,6 +3,7 @@
 
 import { platformFetch as fetch } from "./platform/http";
 import { createLogger } from "./logger";
+import { describeError } from "./i18n";
 import type {
   AuthResponse,
   RegisterResponse,
@@ -33,12 +34,14 @@ export interface ApiClientConfig {
 export class ApiClientError extends Error {
   readonly status: number;
   readonly code: string;
+  readonly serverMessage: string;
 
   constructor(status: number, code: string, message: string) {
-    super(message);
+    super(describeError(message, code, status));
     this.name = "ApiClientError";
     this.status = status;
     this.code = code;
+    this.serverMessage = message;
   }
 }
 
@@ -106,8 +109,9 @@ export function createApiClient(
     log.debug(`${label} ←`, { method, path, status: res.status });
 
     if (res.status === 401) {
-      onUnauthorized?.();
       const err = await parseError(res);
+      // Password confirmation failures must not log the user out.
+      if (config.token && !path.startsWith("/auth/") && err.error === "UNAUTHORIZED") onUnauthorized?.();
       throw new ApiClientError(401, err.error, err.message);
     }
 
@@ -149,6 +153,9 @@ export function createApiClient(
   }
 
   return {
+    getVoiceActivity(signal?: AbortSignal): Promise<{ members: import("@stores/activity.store").MemberActivity[] }> {
+      return request("GET", "/activity", undefined, signal);
+    },
     /** Update the client config (e.g., after login). */
     setConfig(newConfig: Partial<ApiClientConfig>): void {
       config = { ...config, ...newConfig };

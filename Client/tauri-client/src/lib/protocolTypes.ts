@@ -39,6 +39,7 @@ export const ServerMessageType = {
   PONG: "pong",
   DM_CHANNEL_OPEN: "dm_channel_open",
   DM_CHANNEL_CLOSE: "dm_channel_close",
+  CALL_STATE: "call_state",
 } as const;
 
 export type ServerMessageTypeValue =
@@ -67,6 +68,10 @@ export const ClientMessageType = {
   PING: "ping",
   // Extension (not in protocol-schema.json but used in practice)
   VOICE_TOKEN_REFRESH: "voice_token_refresh",
+  CALL_START: "call_start",
+  CALL_ACCEPT: "call_accept",
+  CALL_END: "call_end",
+  CALL_SYNC: "call_sync",
 } as const;
 
 export type ClientMessageTypeValue =

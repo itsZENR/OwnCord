@@ -112,6 +112,11 @@ func sqlFilenames(fsys fs.FS) ([]string, error) {
 // database.
 func seedExistingDatabase(d *DB, filenames []string) error {
 	for _, name := range filenames {
+		// Only the original pre-tracking baseline may be assumed applied.
+		// Future migrations must run even when upgrading a legacy database.
+		if name > "008_dm_tables.sql" {
+			continue
+		}
 		if err := recordApplied(d, name); err != nil {
 			return fmt.Errorf("seeding %s: %w", name, err)
 		}
@@ -154,7 +159,9 @@ func MigrateFS(database *DB, fsys fs.FS) error {
 			return checkErr
 		}
 		if existing {
-			return seedExistingDatabase(database, filenames)
+			if err := seedExistingDatabase(database, filenames); err != nil {
+				return err
+			}
 		}
 	}
 

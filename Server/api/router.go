@@ -35,6 +35,7 @@ func NewRouter(cfg *config.Config, database *db.DB, ver string, logBuf *admin.Ri
 	r.Use(middleware.Recoverer)
 	r.Use(requestLogger) // structured request/response logging
 	r.Use(SecurityHeadersWithTLS(cfg.TLS.Mode))
+	r.Use(corsMiddleware(cfg.Server.AllowedOrigins))
 	r.Use(MaxBodySizeUnless(1<<20, "/api/v1/uploads")) // 1 MiB default; upload route exempt
 
 	// Health check — unauthenticated, no versioning prefix.
@@ -74,6 +75,7 @@ func NewRouter(cfg *config.Config, database *db.DB, ver string, logBuf *admin.Ri
 
 	// Channel and message REST routes.
 	MountChannelRoutes(r, database, limiter, cfg.Server.TrustedProxies)
+	r.With(AuthMiddleware(database)).Get("/api/v1/activity", handleVoiceActivity(database))
 
 	// DM REST routes are mounted after hub creation (below) so the hub can
 	// be passed as a DMBroadcaster for real-time close events.

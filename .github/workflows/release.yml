@@ -42,6 +42,28 @@ jobs:
         working-directory: Client/tauri-client
         run: npm ci
 
+      - name: Check release versions
+        shell: pwsh
+        run: |
+          $package = Get-Content Client/tauri-client/package.json -Raw | ConvertFrom-Json
+          $tauri = Get-Content Client/tauri-client/src-tauri/tauri.conf.json -Raw | ConvertFrom-Json
+          if ($package.version -ne $env:VERSION -or $tauri.version -ne $env:VERSION) {
+            throw "Client version must match the release tag: $env:VERSION"
+          }
+
+      - name: Check client
+        working-directory: Client/tauri-client
+        run: |
+          npm run typecheck
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run lint
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm test -- --reporter=dot --silent=true
+
+      - name: Test server
+        working-directory: Server
+        run: go test ./...
+
       - name: Build web client bundle
         working-directory: Client/tauri-client
         run: npm run build:web
@@ -92,10 +114,6 @@ jobs:
           if (-not $bin) { throw "livekit-server (linux) not found in archive" }
           Copy-Item $bin.FullName -Destination livekit-server-linux-amd64 -Force
 
-      - name: Install npm dependencies
-        working-directory: Client/tauri-client
-        run: npm ci
-
       - name: Build Tauri app
         working-directory: Client/tauri-client
         env:
@@ -109,6 +127,7 @@ jobs:
         run: |
           NSIS_DIR="Client/tauri-client/src-tauri/target/release/bundle/nsis"
           INSTALLER=$(find "$NSIS_DIR" -name "*.exe" | head -1)
+          test -n "$INSTALLER" && test -s "$INSTALLER"
           echo "installer_path=$INSTALLER" >> "$GITHUB_OUTPUT"
           echo "installer_name=$(basename $INSTALLER)" >> "$GITHUB_OUTPUT"
           # Updater artifacts (produced when TAURI_SIGNING_PRIVATE_KEY is set).
@@ -116,6 +135,7 @@ jobs:
           # located above as the installer); its detached signature is a
           # sibling -setup.exe.sig. There is no .nsis.zip.
           NSIS_SIG=$(find "$NSIS_DIR" -name "*_x64-setup.exe.sig" | head -1)
+          test -n "$NSIS_SIG" && test -s "$NSIS_SIG"
           echo "nsis_zip=" >> "$GITHUB_OUTPUT"
           echo "nsis_sig=${NSIS_SIG:-}" >> "$GITHUB_OUTPUT"
 
@@ -163,6 +183,11 @@ jobs:
           if [ -n "${{ steps.artifacts.outputs.nsis_sig }}" ]; then
             ASSETS+=("${{ steps.artifacts.outputs.nsis_sig }}")
           fi
-          gh release create ${{ github.ref_name }} \
-            --generate-notes \
+          NOTES=(--generate-notes)
+          if [ -f "docs/releases/$VERSION.md" ]; then
+            NOTES=(--notes-file "docs/releases/$VERSION.md")
+          fi
+          gh release create "$GITHUB_REF_NAME" \
+            --verify-tag \
+            "${NOTES[@]}" \
             "${ASSETS[@]}"

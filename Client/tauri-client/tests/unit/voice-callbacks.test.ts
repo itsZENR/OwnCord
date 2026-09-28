@@ -278,13 +278,13 @@ describe("createSidebarVoiceCallbacks", () => {
     vi.clearAllMocks();
   });
 
-  it("onVoiceJoin sends voice_join and updates store", () => {
+  it("onVoiceJoin waits for server confirmation before updating membership", () => {
     const ws = makeWs();
     const cbs = createSidebarVoiceCallbacks(ws);
 
     cbs.onVoiceJoin(42);
 
-    expect(mockJoinVoiceChannel).toHaveBeenCalledWith(42);
+    expect(mockJoinVoiceChannel).not.toHaveBeenCalled();
     expect(ws.send).toHaveBeenCalledWith({
       type: "voice_join",
       payload: { channel_id: 42 },

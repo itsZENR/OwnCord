@@ -5,6 +5,7 @@
 
 import { createLogger } from "./logger";
 import { isTauri } from "./platform/index";
+import { normalizeServerAddress } from "./serverAddress";
 
 const log = createLogger("credentials");
 
@@ -37,12 +38,26 @@ export async function saveCredential(
   username: string,
   token: string,
   password?: string,
+  persist = true,
 ): Promise<boolean> {
+  host = normalizeServerAddress(host);
   if (!isTauri()) {
     // Web: persist username + token only (no password auto-login in a browser).
     // localStorage is weaker than the desktop OS store; token is revocable.
     try {
-      localStorage.setItem(webKey(host), JSON.stringify({ username, token }));
+      const storage = persist ? localStorage : sessionStorage;
+      storage.setItem(webKey(host), JSON.stringify({ username, token }));
+      (persist ? sessionStorage : localStorage).removeItem(webKey(host));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  // A non-persistent desktop login must not leave an old Windows credential
+  // behind. The active token remains in memory for the current session.
+  if (!persist) {
+    try {
+      await invokeDeleteCredential(host);
       return true;
     } catch {
       return false;
@@ -62,6 +77,12 @@ export async function saveCredential(
   }
 }
 
+async function invokeDeleteCredential(host: string): Promise<void> {
+  const invoke = await getInvoke();
+  if (!invoke) throw new Error("Tauri is not available");
+  await invoke("delete_credential", { host });
+}
+
 /**
  * Load a credential from Windows Credential Manager.
  * Returns null if not found or Tauri unavailable.
@@ -69,9 +90,10 @@ export async function saveCredential(
 export async function loadCredential(
   host: string,
 ): Promise<SavedCredential | null> {
+  host = normalizeServerAddress(host);
   if (!isTauri()) {
     try {
-      const raw = localStorage.getItem(webKey(host));
+      const raw = sessionStorage.getItem(webKey(host)) ?? localStorage.getItem(webKey(host));
       if (!raw) return null;
       const o = JSON.parse(raw) as Record<string, unknown>;
       if (typeof o.username === "string" && typeof o.token === "string") {
@@ -109,9 +131,11 @@ export async function loadCredential(
  * Delete a credential from Windows Credential Manager.
  */
 export async function deleteCredential(host: string): Promise<boolean> {
+  host = normalizeServerAddress(host);
   if (!isTauri()) {
     try {
       localStorage.removeItem(webKey(host));
+      sessionStorage.removeItem(webKey(host));
       return true;
     } catch {
       return false;

@@ -9,7 +9,9 @@ import type { MountableComponent } from "@lib/safe-render";
 import { Disposable } from "@lib/disposable";
 import { membersStore, type Member } from "@stores/members.store";
 import { authStore } from "@stores/auth.store";
+import { activityStore } from "@stores/activity.store";
 import { createMemberContextMenu } from "@components/AdminActions";
+import { createVoiceRegalia } from "@components/VoiceRegalia";
 import type { UserStatus } from "@lib/types";
 
 /** Options for configuring admin action callbacks on the member list. */
@@ -95,13 +97,18 @@ function createMemberItem(
   });
   avatar.appendChild(statusDot);
 
+  const avatarStack = createElement("div", { class: "mi-avatar-stack" });
+  avatarStack.appendChild(avatar);
+  const regalia = createVoiceRegalia(member.id);
+  if (regalia !== null) avatarStack.appendChild(regalia);
+
   const name = createElement(
     "span",
     { class: "mi-name", style: `color: ${colorVar}` },
   );
   setText(name, member.username);
 
-  appendChildren(item, avatar, name);
+  appendChildren(item, avatarStack, name);
 
   // Context menu for admin actions
   item.addEventListener("contextmenu", (e) => {
@@ -190,6 +197,16 @@ export function createMemberList(opts: MemberListOptions): MountableComponent {
 
     disposable.onStoreChange(
       membersStore,
+      (s) => s.members,
+      () => {
+        if (root !== null) {
+          renderList(root, opts, disposable.signal);
+        }
+      },
+    );
+
+    disposable.onStoreChange(
+      activityStore,
       (s) => s.members,
       () => {
         if (root !== null) {

@@ -121,7 +121,7 @@ server:
   port: 8443
   name: "OwnCord Server"
   data_dir: "data"
-  # allowed_origins: ["*"]   # restrict WebSocket origins, e.g. ["https://example.com"]
+  # allowed_origins: ["*"]   # restrict browser API and WebSocket origins, e.g. ["https://example.com"]
   # trusted_proxies: []       # CIDRs of trusted reverse proxies, e.g. ["10.0.0.0/8"]
   # admin_allowed_cidrs:      # CIDRs allowed to access /admin (default: private networks only)
   #   - "127.0.0.0/8"

@@ -5,6 +5,7 @@ import (
 	"testing/fstest"
 
 	"github.com/owncord/server/db"
+	"github.com/owncord/server/migrations"
 )
 
 var channelSchema = []byte(`
@@ -53,6 +54,13 @@ CREATE INDEX IF NOT EXISTS idx_voice_states_channel ON voice_states(channel_id);
 	}
 	if err := db.MigrateFS(database, migrFS); err != nil {
 		t.Fatalf("MigrateFS: %v", err)
+	}
+	activitySQL, err := migrations.FS.ReadFile("009_voice_activity.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := database.Exec(string(activitySQL)); err != nil {
+		t.Fatal(err)
 	}
 	return database
 }

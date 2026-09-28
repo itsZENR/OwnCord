@@ -66,12 +66,20 @@ export function formatMessageTimestamp(iso: string): string {
 }
 
 export function isSameDay(a: string, b: string): boolean {
+  // Server timestamps carry the calendar date that should be used for message
+  // grouping. Comparing the date part avoids changing the divider when the
+  // viewer's local timezone crosses midnight.
+  const datePart = (value: string) => value.match(/^\d{4}-\d{2}-\d{2}/)?.[0] ?? null;
+  const dayA = datePart(a);
+  const dayB = datePart(b);
+  if (dayA !== null && dayB !== null) return dayA === dayB;
+
   const da = parseTimestamp(a);
   const db = parseTimestamp(b);
   return (
-    da.getFullYear() === db.getFullYear() &&
-    da.getMonth() === db.getMonth() &&
-    da.getDate() === db.getDate()
+    da.getUTCFullYear() === db.getUTCFullYear() &&
+    da.getUTCMonth() === db.getUTCMonth() &&
+    da.getUTCDate() === db.getUTCDate()
   );
 }
 

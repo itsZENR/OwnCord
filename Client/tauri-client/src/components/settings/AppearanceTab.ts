@@ -7,6 +7,7 @@ import { loadPref, savePref, applyTheme, THEMES, createToggle } from "./helpers"
 import type { ThemeName } from "./helpers";
 import { setTheme } from "@stores/ui.store";
 import { getActiveThemeName, loadCustomTheme, restoreTheme } from "@lib/themes";
+import { getLanguage, setLanguage, t } from "@lib/i18n";
 
 const FALLBACK_ACCENT = "#5865f2";
 
@@ -23,6 +24,13 @@ function getDefaultAccent(themeName: string): string {
 
 export function buildAppearanceTab(signal: AbortSignal): HTMLDivElement {
   const section = createElement("div", { class: "settings-pane active" });
+  const languageLabel = createElement("label", { for: "app-language", class: "setting-label" }, t("Language (restarts the interface)", "Язык (интерфейс перезапустится)"));
+  const languageSelect = createElement("select", { id: "app-language", class: "form-input" });
+  languageSelect.appendChild(createElement("option", { value: "ru" }, "Русский"));
+  languageSelect.appendChild(createElement("option", { value: "en" }, "English"));
+  languageSelect.value = getLanguage();
+  languageSelect.addEventListener("change", () => setLanguage(languageSelect.value === "ru" ? "ru" : "en"), { signal });
+  appendChildren(section, languageLabel, languageSelect);
   const activeThemeName = getActiveThemeName();
   const currentTheme = activeThemeName in THEMES
     ? activeThemeName as ThemeName

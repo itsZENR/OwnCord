@@ -28,6 +28,12 @@ func validVoiceQuality(q string) bool {
 // 8. Broadcasts voice_state to all clients.
 // 9. Sends voice_config to the joiner.
 func (h *Hub) handleVoiceJoin(ctx context.Context, c *Client, payload json.RawMessage) {
+	h.callMu.Lock()
+	defer h.callMu.Unlock()
+	if h.calls[c.userID] != nil {
+		c.sendMsg(buildErrorMsg("CALL_BUSY", "end your current call before joining a channel"))
+		return
+	}
 	channelID, err := parseChannelID(payload)
 	if err != nil || channelID <= 0 {
 		c.sendMsg(buildErrorMsg(ErrCodeBadRequest, "channel_id must be a positive integer"))
@@ -43,6 +49,10 @@ func (h *Hub) handleVoiceJoin(ctx context.Context, c *Client, payload json.RawMe
 	ch, err := h.db.GetChannel(channelID)
 	if err != nil || ch == nil {
 		c.sendMsg(buildErrorMsg(ErrCodeNotFound, "channel not found"))
+		return
+	}
+	if ch.Type != "voice" {
+		c.sendMsg(buildErrorMsg(ErrCodeBadRequest, "this is not a voice channel"))
 		return
 	}
 
@@ -70,9 +80,6 @@ func (h *Hub) handleVoiceJoin(ctx context.Context, c *Client, payload json.RawMe
 	}
 
 	// If user is already in a different voice channel, leave it first.
-	if currentChID > 0 {
-		h.handleVoiceLeave(ctx, c)
-	}
 
 	// Check channel capacity.
 	maxUsers := ch.VoiceMaxUsers
@@ -90,6 +97,9 @@ func (h *Hub) handleVoiceJoin(ctx context.Context, c *Client, payload json.RawMe
 	}
 
 	// Persist to DB.
+	if currentChID > 0 {
+		h.handleChannelVoiceLeave(ctx, c)
+	}
 	if err := h.db.JoinVoiceChannel(c.userID, channelID); err != nil {
 		slog.Error("ws handleVoiceJoin JoinVoiceChannel", "err", err, "user_id", c.userID)
 		c.sendMsg(buildErrorMsg(ErrCodeInternal, "failed to join voice channel"))
@@ -191,6 +201,13 @@ func (h *Hub) handleVoiceTokenRefresh(ctx context.Context, c *Client) {
 		c.sendMsg(buildRateLimitError("token refresh rate limited", 60))
 		return
 	}
+	h.callMu.Lock()
+	if call := h.calls[c.userID]; call != nil && call.State == "active" {
+		h.sendCallToken(c, call)
+		h.callMu.Unlock()
+		return
+	}
+	h.callMu.Unlock()
 
 	channelID := c.getVoiceChID()
 	if channelID == 0 {

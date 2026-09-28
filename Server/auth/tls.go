@@ -55,10 +55,15 @@ func GenerateSelfSigned(certFile, keyFile string) error {
 			Organization: []string{"OwnCord Server"},
 			CommonName:   "OwnCord Self-Signed",
 		},
-		NotBefore:             now,
-		NotAfter:              now.Add(10 * 365 * 24 * time.Hour),
-		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
-		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		NotBefore:   now,
+		NotAfter:    now.Add(10 * 365 * 24 * time.Hour),
+		KeyUsage:    x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
+		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		// The development server is normally opened as localhost or by its
+		// loopback address. Modern TLS clients ignore CommonName and require
+		// these names in Subject Alternative Name.
+		DNSNames:              []string{"localhost"},
+		IPAddresses:           []net.IP{net.ParseIP("127.0.0.1"), net.ParseIP("::1")},
 		BasicConstraintsValid: true,
 		IsCA:                  true,
 	}

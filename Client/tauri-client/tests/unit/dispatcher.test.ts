@@ -755,7 +755,7 @@ describe("WS Dispatcher", () => {
     expect(error).toBe("Server error");
   });
 
-  it("wires error with unknown code does not set transient error", () => {
+  it("shows errors with unrecognized codes instead of silently discarding them", () => {
     // Clear any previous errors
     uiStore.setState((prev) => ({ ...prev, transientError: null }));
 
@@ -764,7 +764,7 @@ describe("WS Dispatcher", () => {
       message: "Something odd",
     });
 
-    expect(uiStore.getState().transientError).toBeNull();
+    expect(uiStore.getState().transientError).toBe("Something odd");
   });
 
   it("does not increment unread for own messages", () => {

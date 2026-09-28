@@ -356,6 +356,21 @@ func (h *Hub) buildReady(database *db.DB, userID int64) ([]byte, error) {
 	}
 
 	// Load open DM channels for this user.
+	visibleVoiceStates := make([]db.VoiceState, 0, len(voiceStates))
+	for _, state := range voiceStates {
+		ch, chErr := database.GetChannel(state.ChannelID)
+		if chErr != nil || ch == nil {
+			continue
+		}
+		if ch.Type == "dm" {
+			participant, _ := database.IsDMParticipant(userID, state.ChannelID)
+			if !participant {
+				continue
+			}
+		}
+		visibleVoiceStates = append(visibleVoiceStates, state)
+	}
+	voiceStates = visibleVoiceStates
 	dmChannels, err := database.GetUserDMChannels(userID)
 	if err != nil {
 		slog.Warn("buildReady GetUserDMChannels", "err", err)

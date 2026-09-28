@@ -1,3 +1,4 @@
+import { t } from "@lib/i18n";
 /**
  * SidebarArea — unified sidebar DOM construction and component wiring.
  * Composes a server header, ChannelSidebar or DmSidebar (based on store mode),
@@ -113,7 +114,7 @@ export function createSidebarArea(opts: SidebarAreaOptions): SidebarAreaResult {
   );
   const onlineCount = getOnlineMembers().length;
   const serverOnlineEl = createElement("span", { class: "server-online" },
-    `${onlineCount} online`,
+    `${onlineCount} ${t("online", "в сети")}`,
   );
   serverInfoCol.appendChild(serverNameEl);
   serverInfoCol.appendChild(serverOnlineEl);
@@ -124,9 +125,9 @@ export function createSidebarArea(opts: SidebarAreaOptions): SidebarAreaResult {
   const headerInviteCtrl = createInviteManagerController({ api, getRoot });
   const headerInviteBtn = createElement("button", {
     class: "sidebar-invite-btn",
-    title: "Invite people",
+    title: t("Invite people", "Пригласить участников"),
     "data-testid": "invite-btn",
-  }, "Invite");
+  }, t("Invite", "Пригласить"));
   headerInviteBtn.addEventListener("click", () => { void headerInviteCtrl.open(); });
   serverHeader.appendChild(headerInviteBtn);
   unsubscribers.push(() => { headerInviteCtrl.cleanup(); });
@@ -151,7 +152,7 @@ export function createSidebarArea(opts: SidebarAreaOptions): SidebarAreaResult {
     (s) => s.members,
     () => {
       const count = getOnlineMembers().length;
-      setText(serverOnlineEl, `${count} online`);
+      setText(serverOnlineEl, `${count} ${t("online", "в сети")}`);
     },
   );
   unsubscribers.push(unsubOnlineCount);
@@ -512,9 +513,9 @@ export function createSidebarArea(opts: SidebarAreaOptions): SidebarAreaResult {
       const dmSection = createElement("div", { class: "sidebar-dm-section" });
       const dmHeader = createElement("div", { class: "category" });
       const dmArrow = createElement("span", { class: "category-arrow" }, "\u25BC");
-      const dmLabelEl = createElement("span", { class: "category-name" }, "DIRECT MESSAGES");
+      const dmLabelEl = createElement("span", { class: "category-name" }, t("DIRECT MESSAGES", "ЛИЧНЫЕ СООБЩЕНИЯ"));
       const dmUnreadBadge = createElement("span", { class: "dm-header-unread-badge" });
-      const dmAddBtn = createElement("button", { class: "category-add-btn", title: "New DM" }, "+");
+      const dmAddBtn = createElement("button", { class: "category-add-btn", title: t("New DM", "Новое сообщение") }, "+");
       dmAddBtn.style.opacity = "1";
       appendChildren(dmHeader, dmArrow, dmLabelEl, dmUnreadBadge, dmAddBtn);
       dmSection.appendChild(dmHeader);
@@ -525,7 +526,7 @@ export function createSidebarArea(opts: SidebarAreaOptions): SidebarAreaResult {
       // "View All" button (shown when more than 5 DMs exist)
       const viewAllBtn = createElement("button", {
         class: "sidebar-dm-view-all",
-      }, "View all messages");
+      }, t("View all messages", "Все сообщения"));
 
       viewAllBtn.addEventListener("click", () => {
         setSidebarMode("dms");
@@ -631,7 +632,7 @@ export function createSidebarArea(opts: SidebarAreaOptions): SidebarAreaResult {
       // Member header (styled like category headers)
       const memberHeader = createElement("div", { class: "category sidebar-members-header" });
       const memberArrow = createElement("span", { class: "category-arrow" }, "\u25BC");
-      const memberLabelEl = createElement("span", { class: "category-name" }, "MEMBERS");
+      const memberLabelEl = createElement("span", { class: "category-name" }, t("MEMBERS", "УЧАСТНИКИ"));
       appendChildren(memberHeader, memberArrow, memberLabelEl);
       memberListContainer.appendChild(memberHeader);
 

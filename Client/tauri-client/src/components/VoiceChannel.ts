@@ -11,6 +11,9 @@ import type { VoiceUser } from "@stores/voice.store";
 import { membersStore } from "@stores/members.store";
 import { setUserVolume, getUserVolume } from "@lib/livekitSession";
 import { authStore } from "@stores/auth.store";
+import { activityStore, formatVoiceTime, getVoiceTimeForChannel } from "@stores/activity.store";
+import { createVoiceRegalia } from "@components/VoiceRegalia";
+import { t } from "@lib/i18n";
 
 export interface VoiceChannelOptions {
   channelId: number;
@@ -160,10 +163,19 @@ export function createVoiceChannel(options: VoiceChannelOptions): VoiceChannelRe
     const color = pickAvatarColor(username);
     const avatar = createElement("div", { class: "vu-avatar" }, initial);
     avatar.style.background = color;
-    row.appendChild(avatar);
+    const avatarStack = createElement("div", { class: "vu-avatar-stack" });
+    avatarStack.appendChild(avatar);
+    const regalia = createVoiceRegalia(user.userId);
+    if (regalia !== null) avatarStack.appendChild(regalia);
+    row.appendChild(avatarStack);
 
     const name = createElement("span", { class: "vu-name" }, username);
     row.appendChild(name);
+    const activity = activityStore.getState();
+    if (activity.loaded && !activity.error) {
+      row.appendChild(createElement("span", { class: "vu-hours", title: t("Time in this voice channel", "Время в этом голосовом канале") },
+        formatVoiceTime(getVoiceTimeForChannel(activity.members.get(user.userId), options.channelId))));
+    }
 
     if (user.camera) {
       const cameraEl = createElement("span", { class: "vu-status" });
@@ -229,6 +241,7 @@ export function createVoiceChannel(options: VoiceChannelOptions): VoiceChannelRe
   update();
   unsubs.push(voiceStore.subscribeSelector((s) => s.voiceUsers, () => update()));
   unsubs.push(membersStore.subscribeSelector((s) => s.members, () => update()));
+  unsubs.push(activityStore.subscribe(() => { prevChannelUsers = undefined; update(); }));
 
   function destroy(): void {
     closeContextMenu();

@@ -9,8 +9,17 @@ import { channelsStore } from "@stores/channels.store";
 import type { ChatMessagePayload } from "./types";
 import { createLogger } from "./logger";
 import { isTauri } from "./platform/index";
+import { t } from "./i18n";
 
 const log = createLogger("notifications");
+
+export function notifyIncomingCall(username: string): void {
+  if (!document.hasFocus() && loadPref<boolean>("desktopNotifications", true)) {
+    fireDesktopNotification(username, t("Incoming private call", "Входящий личный звонок"));
+  }
+  if (loadPref<boolean>("flashTaskbar", true)) flashTaskbar();
+  if (loadPref<boolean>("notificationSounds", true)) playNotificationSound();
+}
 
 /** Check if the app window is currently focused. */
 function isWindowFocused(): boolean {

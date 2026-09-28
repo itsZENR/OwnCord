@@ -11,6 +11,16 @@ import (
 // 2. If was in voice: remove from DB (with retry), broadcast voice_leave.
 // 3. Call livekit.RemoveParticipant (ignore errors — participant may already be gone).
 func (h *Hub) handleVoiceLeave(ctx context.Context, c *Client) {
+	h.callMu.Lock()
+	defer h.callMu.Unlock()
+	if call := h.calls[c.userID]; call != nil {
+		h.finishCallLocked(call, "ended")
+		return
+	}
+	h.handleChannelVoiceLeave(ctx, c)
+}
+
+func (h *Hub) handleChannelVoiceLeave(ctx context.Context, c *Client) {
 	oldChID := c.clearVoiceChID()
 	if oldChID == 0 {
 		slog.Debug("handleVoiceLeave no-op (already cleared)", "user_id", c.userID)
@@ -32,7 +42,7 @@ func (h *Hub) handleVoiceLeave(ctx context.Context, c *Client) {
 		c.sendMsg(buildErrorMsg(ErrCodeInternal, "voice leave failed — please rejoin if issues persist"))
 	}
 
-	h.BroadcastToAll(buildVoiceLeave(oldChID, c.userID))
+	h.broadcastVoiceEvent(oldChID, buildVoiceLeave(oldChID, c.userID))
 
 	// Remove from LiveKit (best-effort).
 	if h.livekit != nil {
@@ -51,7 +61,7 @@ func (h *Hub) handleVoiceLeave(ctx context.Context, c *Client) {
 // continue in the background).
 func leaveVoiceChannelWithRetry(h *Hub, userID int64, channelID int64) error {
 	// Synchronous first attempt.
-	if err := h.db.LeaveVoiceChannel(userID); err != nil {
+	if err := h.db.LeaveVoiceChannelIfIn(userID, channelID); err != nil {
 		slog.Warn("LeaveVoiceChannel failed, retrying in background",
 			"err", err, "user_id", userID, "channel_id", channelID,
 			"attempt", 1, "max_retries", 3)
@@ -65,7 +75,7 @@ func leaveVoiceChannelWithRetry(h *Hub, userID int64, channelID int64) error {
 				time.Sleep(delay)
 				delay *= 2
 
-				if retryErr := h.db.LeaveVoiceChannel(userID); retryErr != nil {
+				if retryErr := h.db.LeaveVoiceChannelIfIn(userID, channelID); retryErr != nil {
 					slog.Warn("LeaveVoiceChannel retry failed",
 						"err", retryErr, "user_id", userID, "channel_id", channelID,
 						"attempt", attempt, "max_retries", maxRetries)

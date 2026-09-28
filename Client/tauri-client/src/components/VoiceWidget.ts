@@ -7,6 +7,8 @@
 
 import { createElement, appendChildren, setText } from "@lib/dom";
 import { createIcon, createSignalIcon } from "@lib/icons";
+import { dmStore } from "@stores/dm.store";
+import { t } from "@lib/i18n";
 import type { IconName } from "@lib/icons";
 import type { MountableComponent } from "@lib/safe-render";
 import { voiceStore } from "@stores/voice.store";
@@ -187,7 +189,8 @@ export function createVoiceWidget(options: VoiceWidgetOptions): MountableCompone
 
     // Channel name
     const channel = channelsStore.getState().channels.get(channelId);
-    setText(channelNameEl, channel?.name ?? "Voice Channel");
+    const dm = dmStore.getState().channels.find((item) => item.channelId === channelId);
+    setText(channelNameEl, dm?.recipient.username ?? channel?.name ?? t("Voice Channel", "Голосовой канал"));
 
     // Toggle button active states, swap icons, and update aria-pressed
     muteBtn?.classList.toggle("active-ctrl", voice.localMuted);

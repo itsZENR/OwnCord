@@ -429,6 +429,7 @@ export interface SoundboardPlayPayload {
 // -----------------------------------------------------------------------------
 
 export type ServerMessage =
+  | (WsEnvelope<DirectCallPayload> & { readonly type: "call_state" })
   | (WsEnvelope<AuthOkPayload> & { readonly type: "auth_ok" })
   | (WsEnvelope<AuthErrorPayload> & { readonly type: "auth_error" })
   | (WsEnvelope<ReadyPayload> & { readonly type: "ready" })
@@ -462,6 +463,9 @@ export type ServerMessage =
 // -----------------------------------------------------------------------------
 
 export type ClientMessage =
+  | (WsEnvelope<{ readonly channel_id: number }> & { readonly type: "call_start" })
+  | (WsEnvelope<{ readonly id: string }> & { readonly type: "call_accept" | "call_end" })
+  | (WsEnvelope<Record<string, never>> & { readonly type: "call_sync" })
   | (WsEnvelope<AuthPayload> & { readonly type: "auth" })
   | (WsEnvelope<ChatSendPayload> & { readonly type: "chat_send" })
   | (WsEnvelope<ChatEditPayload> & { readonly type: "chat_edit" })
@@ -485,6 +489,18 @@ export type ClientMessage =
 // -----------------------------------------------------------------------------
 
 /** POST /api/auth/login response. */
+export interface DirectCallPayload {
+  readonly id: string;
+  readonly channel_id: number;
+  readonly caller_id: number;
+  readonly recipient_id: number;
+  readonly caller_name: string;
+  readonly recipient_name: string;
+  readonly state: "ringing" | "active" | "ended";
+  readonly reason?: "ended" | "declined" | "cancelled" | "missed" | "busy" | "failed";
+  readonly expires_at: number;
+}
+
 export interface AuthResponse {
   readonly token?: string;
   readonly partial_token?: string;

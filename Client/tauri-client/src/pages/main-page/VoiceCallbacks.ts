@@ -19,7 +19,6 @@ import {
 } from "@lib/voiceSounds";
 import {
   voiceStore,
-  joinVoiceChannel,
   leaveVoiceChannel,
 } from "@stores/voice.store";
 import {
@@ -152,7 +151,8 @@ export function createSidebarVoiceCallbacks(ws: WsClient): SidebarVoiceCallbacks
       // plays later, after the async token round-trip) is not silenced by a
       // suspended context.
       primeVoiceAudio();
-      joinVoiceChannel(channelId);
+      // The server confirms membership with voice_state. Optimistic membership
+      // left a phantom connection after CHANNEL_FULL / FORBIDDEN / VOICE_ERROR.
       ws.send({ type: "voice_join", payload: { channel_id: channelId } });
     },
     onVoiceLeave: () => {

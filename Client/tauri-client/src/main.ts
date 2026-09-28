@@ -5,6 +5,7 @@ import "@styles/base.css";
 import "@styles/login.css";
 import "@styles/app.css";
 import "@styles/theme-neon-glow.css";
+import "@styles/community.css";
 
 import { installGlobalErrorHandlers, safeMount } from "@lib/safe-render";
 import { createRouter } from "@lib/router";
@@ -31,6 +32,8 @@ import { createProfileManager, createPlatformBackend } from "@lib/profiles";
 import type { CertTofuEvent } from "@lib/ws";
 
 import { isTauri } from "@lib/platform";
+import { describeError, t } from "@lib/i18n";
+import { normalizeServerAddress } from "@lib/serverAddress";
 
 const log = createLogger("main");
 
@@ -94,6 +97,8 @@ let dispatcherCleanup: (() => void) | null = null;
 let connectedOverlay: ConnectedOverlayControl | null = null;
 let lastConnectHost = "";
 let lastConnectToken = "";
+let skipAutoLoginOnce = false;
+let connectionAttemptCleanup: (() => void) | null = null;
 
 // Certificate mismatch modal handler
 let certModalActive = false;
@@ -171,25 +176,28 @@ function runHealthChecks(
 // Render the appropriate page based on router state
 function renderPage(pageId: "connect" | "main"): void {
   log.info("Navigating to page", { pageId });
+  connectionAttemptCleanup?.();
+  connectionAttemptCleanup = null;
   // Destroy previous page
   currentPage?.destroy?.();
   currentPage = null;
   appEl!.textContent = "";
 
   // Shared helper for post-auth WS connect + overlay flow
-  function wirePostAuth(host: string, token: string, username: string, password?: string): void {
+  function wirePostAuth(host: string, token: string, username: string, password?: string, persist = true): void {
+    connectionAttemptCleanup?.();
     log.info("Post-auth wiring", { host, username });
     api.setConfig({ token });
     // Store token in authStore so the dispatcher's auth_ok handler has it
     authStore.setState((prev) => ({ ...prev, token }));
     lastConnectHost = host;
     lastConnectToken = token;
-    ws.connect({ host, token });
+    dispatcherCleanup?.();
     dispatcherCleanup = wireDispatcher(ws);
     log.info("Dispatcher wired, connecting WS");
 
     // Save credential for auto-reconnect. Warn user if it fails.
-    saveCredential(host, username, token, password).then((ok) => {
+    saveCredential(host, username, token, password, persist).then((ok) => {
       if (!ok) {
         log.warn("Credential save failed — auto-login will not work for this server");
         setTransientError("Could not save credentials — auto-login won't work");
@@ -198,6 +206,29 @@ function renderPage(pageId: "connect" | "main"): void {
       // saveCredential already catches internally; this is defence-in-depth
     });
 
+    const attemptUnsubs: Array<() => void> = [];
+    let elapsed = 0;
+    const connectionTimer = setInterval(() => {
+      if (certModalActive) return;
+      elapsed++;
+      if (elapsed >= 20) failConnection(t("Connection timed out. Check your server address and network, then try again.", "Сервер не завершил подключение. Проверьте адрес, интернет или VPN и повторите вход."));
+    }, 1000);
+    connectionAttemptCleanup = () => {
+      clearInterval(connectionTimer);
+      for (const unsub of attemptUnsubs) unsub();
+    };
+    function failConnection(message: string): void {
+      connectionAttemptCleanup?.();
+      connectionAttemptCleanup = null;
+      dispatcherCleanup?.();
+      dispatcherCleanup = null;
+      ws.disconnect();
+      connectedOverlay?.destroy();
+      connectedOverlay = null;
+      clearAuth();
+      setTransientError(message);
+    }
+    attemptUnsubs.push(ws.on("auth_error", (payload) => failConnection(describeError(payload.message))));
     const unsubState = ws.onStateChange((wsState) => {
       log.debug("WS state change", { state: wsState });
       if (wsState === "connected") {
@@ -220,14 +251,19 @@ function renderPage(pageId: "connect" | "main"): void {
           unsubReady();
           connectedOverlay?.markReady();
         });
+        attemptUnsubs.push(unsubReady);
       }
     });
+    attemptUnsubs.push(unsubState);
+    ws.connect({ host, token });
   }
 
   // Track partial auth state for TOTP flow
   let pendingTotpHost = "";
   let pendingTotpPartialToken = "";
   let pendingTotpUsername = "";
+  let pendingTotpPassword: string | undefined;
+  let pendingTotpRemember = false;
 
   if (pageId === "connect") {
     // Helper to get the profile list for the ConnectPage
@@ -242,8 +278,10 @@ function renderPage(pageId: "connect" | "main"): void {
     function ensureProfileExists(host: string, username: string, rememberPassword: boolean): void {
       const existing = profileManager.getAll().find((p) => p.host === host);
       if (existing) {
-        // Update username, rememberPassword preference, and lastConnected
-        profileManager.updateProfile(existing.id, { username, rememberPassword });
+        // Remembering a sign-in also opts this server into token-based auto-login.
+        // The browser never receives a reusable password from credential storage.
+        profileManager.updateProfile(existing.id, { username, rememberPassword, autoConnect: false });
+        if (rememberPassword) profileManager.setAutoLogin(existing.id);
         profileManager.setLastConnected(existing.id);
       } else {
         const created = profileManager.addProfile({
@@ -254,6 +292,7 @@ function renderPage(pageId: "connect" | "main"): void {
           rememberPassword,
           color: "#5865F2",
         });
+        if (rememberPassword) profileManager.setAutoLogin(created.id);
         profileManager.setLastConnected(created.id);
       }
       void profileManager.saveProfiles();
@@ -261,12 +300,15 @@ function renderPage(pageId: "connect" | "main"): void {
 
     const connectPage = createConnectPage({
       async onLogin(host, username, password) {
-        api.setConfig({ host });
+        host = normalizeServerAddress(host);
+        api.setConfig({ host, token: undefined });
         const result = await api.login(username, password);
         if (result.requires_2fa) {
           pendingTotpHost = host;
           pendingTotpPartialToken = result.partial_token ?? "";
           pendingTotpUsername = username;
+          pendingTotpPassword = connectPage.getRememberPassword() ? password : undefined;
+          pendingTotpRemember = connectPage.getRememberPassword();
           connectPage.showTotp();
           return;
         }
@@ -274,16 +316,17 @@ function renderPage(pageId: "connect" | "main"): void {
           const remember = connectPage.getRememberPassword();
           const savedPassword = remember ? password : undefined;
           ensureProfileExists(host, username, remember);
-          wirePostAuth(host, result.token, username, savedPassword);
+          wirePostAuth(host, result.token, username, savedPassword, remember);
         }
       },
       async onRegister(host, username, password, inviteCode) {
-        api.setConfig({ host });
+        host = normalizeServerAddress(host);
+        api.setConfig({ host, token: undefined });
         const result = await api.register(username, password, inviteCode);
         const remember = connectPage.getRememberPassword();
         const savedPassword = remember ? password : undefined;
         ensureProfileExists(host, username, remember);
-        wirePostAuth(host, result.token, username, savedPassword);
+        wirePostAuth(host, result.token, username, savedPassword, remember);
       },
       async onTotpSubmit(code) {
         if (!pendingTotpPartialToken) {
@@ -292,13 +335,16 @@ function renderPage(pageId: "connect" | "main"): void {
         }
         const result = await api.verifyTotp(code, pendingTotpPartialToken);
         if (result.token) {
-          const remember = connectPage.getRememberPassword();
-          const savedPassword = remember ? connectPage.getPassword() : undefined;
+          const remember = pendingTotpRemember;
+          const savedPassword = pendingTotpPassword;
           ensureProfileExists(pendingTotpHost, pendingTotpUsername, remember);
-          wirePostAuth(pendingTotpHost, result.token, pendingTotpUsername, savedPassword);
+          wirePostAuth(pendingTotpHost, result.token, pendingTotpUsername, savedPassword, remember);
+          pendingTotpPassword = undefined;
+          pendingTotpPartialToken = "";
         }
       },
       onAddProfile(name, host) {
+        host = normalizeServerAddress(host);
         profileManager.addProfile({
           name,
           host,
@@ -313,6 +359,8 @@ function renderPage(pageId: "connect" | "main"): void {
         runHealthChecks(connectPage, getProfileList());
       },
       onDeleteProfile(profileId) {
+        const profile = profileManager.getById(profileId);
+        if (profile) void deleteCredential(profile.host);
         profileManager.removeProfile(profileId);
         void profileManager.saveProfiles();
         connectPage.refreshProfiles(getProfileList());
@@ -339,6 +387,7 @@ function renderPage(pageId: "connect" | "main"): void {
     // Wrap destroy to clear the interval
     currentPage = {
       destroy() {
+        autoLoginCancelled = true;
         clearInterval(healthCheckInterval);
         connectPage.destroy?.();
       },
@@ -350,6 +399,8 @@ function renderPage(pageId: "connect" | "main"): void {
         await profileManager.loadProfiles();
         const profiles = getProfileList();
         connectPage.refreshProfiles(profiles);
+        const last = [...profileManager.getAll()].sort((a, b) => (b.lastConnected ?? "").localeCompare(a.lastConnected ?? ""))[0];
+        if (last && !autoLoginCancelled) connectPage.selectServer(last.host, last.username);
         runHealthChecks(connectPage, profiles);
       } catch (err) {
         log.warn("Failed to load profiles, using defaults", err);
@@ -370,10 +421,30 @@ function renderPage(pageId: "connect" | "main"): void {
       }
 
       // Auto-login: if a profile has autoConnect enabled, try to connect automatically.
-      const autoProfile = profileManager.getAutoConnectProfile();
+      const skip = skipAutoLoginOnce;
+      skipAutoLoginOnce = false;
+      const autoProfile = skip ? null : profileManager.getAutoConnectProfile();
       if (autoProfile) {
         try {
           const cred = await loadCredential(autoProfile.host);
+          if (cred?.username && !autoLoginCancelled) {
+            connectPage.selectServer(autoProfile.host, cred.username);
+            connectPage.showAutoConnecting(autoProfile.name);
+            // A saved session works in both the browser and the desktop client.
+            if (cred.token) {
+              const savedApi = createApiClient({ host: autoProfile.host, token: cred.token });
+              try {
+                await savedApi.getMe();
+                if (autoLoginCancelled) return;
+                api.setConfig({ host: autoProfile.host });
+                wirePostAuth(autoProfile.host, cred.token, cred.username, cred.password);
+                return;
+              } catch (err) {
+                if (!(err && typeof err === "object" && "status" in err && err.status === 401)) throw err;
+                if (!cred.password) throw new Error(t("Your saved session expired. Please sign in again.", "Сохранённый сеанс истёк. Введите пароль для повторного входа."));
+              }
+            }
+          }
           if (cred?.username && cred?.password && !autoLoginCancelled) {
             connectPage.selectServer(autoProfile.host, cred.username);
             connectPage.showAutoConnecting(autoProfile.name);
@@ -389,6 +460,8 @@ function renderPage(pageId: "connect" | "main"): void {
               pendingTotpHost = autoProfile.host;
               pendingTotpPartialToken = result.partial_token ?? "";
               pendingTotpUsername = cred.username;
+              pendingTotpPassword = cred.password;
+              pendingTotpRemember = true;
               connectPage.showTotp();
               return;
             }
@@ -403,7 +476,7 @@ function renderPage(pageId: "connect" | "main"): void {
           if (!autoLoginCancelled) {
             const message = err instanceof Error ? err.message : "Auto-login failed";
             log.warn("Auto-login failed", { host: autoProfile.host, error: message });
-            connectPage.showError(`Auto-login failed: ${message}`);
+            connectPage.showError(describeError(message));
           }
         }
       }
@@ -435,11 +508,10 @@ authStore.subscribeSelector(
       ws.disconnect();
       lastConnectToken = "";
       lastConnectHost = "";
-      // Clear stored credential on logout
-      const host = api.getConfig().host;
-      if (host) {
-        void deleteCredential(host);
-      }
+      // Disconnects, expired sessions and server switches must not erase passwords.
+      // Explicit account logout removes credentials in MainPage.
+      skipAutoLoginOnce = true;
+      api.setConfig({ token: undefined });
       router.navigate("connect");
     }
   },

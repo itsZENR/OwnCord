@@ -142,6 +142,14 @@ func (h *Hub) handleWebhookParticipantLeft(event *livekit.WebhookEvent) {
 		return
 	}
 
+	if strings.HasPrefix(room.Name, "call-") {
+		h.callMu.Lock()
+		if call := h.calls[userID]; call != nil && call.room() == room.Name {
+			h.finishCallLocked(call, "ended")
+		}
+		h.callMu.Unlock()
+		return
+	}
 	channelID, err := parseRoomChannelID(room.Name)
 	if err != nil {
 		slog.Warn("livekit webhook: participant_left bad room",

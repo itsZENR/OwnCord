@@ -11,6 +11,9 @@ import {
   appendChildren,
 } from "@lib/dom";
 import { createIcon } from "@lib/icons";
+import { activityStore, formatVoiceTime, getVoiceTimeForChannel } from "@stores/activity.store";
+import { createVoiceRegalia } from "@components/VoiceRegalia";
+import { t } from "@lib/i18n";
 import type { MountableComponent } from "@lib/safe-render";
 import {
   channelsStore,
@@ -257,7 +260,11 @@ function renderVoiceChannelItem(
         : "?";
       const avatar = createElement("div", { class: "vu-avatar" }, initial);
       avatar.style.background = pickAvatarColor(user.username);
-      row.appendChild(avatar);
+      const avatarStack = createElement("div", { class: "vu-avatar-stack" });
+      avatarStack.appendChild(avatar);
+      const regalia = createVoiceRegalia(user.userId);
+      if (regalia !== null) avatarStack.appendChild(regalia);
+      row.appendChild(avatarStack);
 
       const nameEl = createElement(
         "span",
@@ -265,6 +272,11 @@ function renderVoiceChannelItem(
         user.username || "Unknown",
       );
       row.appendChild(nameEl);
+      const activity = activityStore.getState();
+      if (activity.loaded && !activity.error) {
+        row.appendChild(createElement("span", { class: "vu-hours", title: t("Time in this voice channel", "Время в этом голосовом канале") },
+          formatVoiceTime(getVoiceTimeForChannel(activity.members.get(user.userId), channel.id))));
+      }
 
       if (user.camera) {
         const cameraIcon = createElement("span", { class: "vu-status" });
@@ -839,6 +851,7 @@ export function createChannelSidebar(options: ChannelSidebarOptions): MountableC
       }
     });
     unsubscribers.push(unsubVoice);
+    unsubscribers.push(activityStore.subscribe(() => renderChannels()));
   }
 
   function destroy(): void {

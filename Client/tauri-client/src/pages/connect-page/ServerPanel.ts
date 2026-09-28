@@ -1,3 +1,4 @@
+import { t } from "@lib/i18n";
 // ServerPanel — server profile list sub-component for ConnectPage.
 // Pure extraction from ConnectPage.ts. No behavior changes.
 
@@ -86,14 +87,14 @@ export function createServerPanel(
     const panel = createElement("div", { class: "server-panel" });
 
     const header = createElement("div", { class: "server-panel-header" });
-    const heading = createElement("h2", {}, "Servers");
+    const heading = createElement("h2", {}, t("Servers", "Серверы"));
     header.appendChild(heading);
 
     serverListEl = createElement("div", { class: "server-list" });
 
     renderServerProfiles(initialProfiles);
 
-    // Footer with "Add Server" button
+    // Footer with t("Add Server", "Добавить сервер") button
     const footer = createElement("div", { class: "server-panel-footer" });
     const addBtn = createElement("button", {
       class: "btn-add-server",
@@ -153,8 +154,8 @@ export function createServerPanel(
         const autoLoginBtn = createElement("button", {
           class: `srv-btn auto-login${isAutoLogin ? " active" : ""}`,
           type: "button",
-          "aria-label": isAutoLogin ? "Disable auto-login" : "Enable auto-login",
-          title: isAutoLogin ? "Auto-login enabled" : "Enable auto-login",
+          "aria-label": isAutoLogin ? t("Disable auto-login", "Выключить автовход") : t("Enable auto-login", "Включить автовход"),
+          title: isAutoLogin ? t("Auto-login enabled", "Автовход включён") : t("Enable auto-login", "Включить автовход"),
         });
         autoLoginBtn.textContent = "";
         autoLoginBtn.appendChild(createIcon("zap", 14));
@@ -174,7 +175,7 @@ export function createServerPanel(
         const deleteBtn = createElement("button", {
           class: "srv-btn danger",
           type: "button",
-          "aria-label": "Delete server",
+          "aria-label": t("Delete server", "Удалить сервер"),
         });
         deleteBtn.textContent = "";
         deleteBtn.appendChild(createIcon("x", 14));
@@ -250,7 +251,7 @@ export function createServerPanel(
     const modal = createElement("div", { class: "modal" });
 
     const header = createElement("div", { class: "modal-header" });
-    const title = createElement("h3", {}, "Add Server");
+    const title = createElement("h3", {}, t("Add Server", "Добавить сервер"));
     const closeBtn = createElement("button", { class: "modal-close", type: "button" });
     closeBtn.textContent = "";
     closeBtn.appendChild(createIcon("x", 14));
@@ -258,7 +259,7 @@ export function createServerPanel(
 
     const body = createElement("div", { class: "modal-body" });
     const nameGroup = createElement("div", { class: "form-group" });
-    const nameLabel = createElement("label", { class: "form-label" }, "Server Name");
+    const nameLabel = createElement("label", { class: "form-label" }, t("Server Name", "Название сервера"));
     const nameInput = createElement("input", {
       class: "form-input",
       type: "text",
@@ -267,7 +268,7 @@ export function createServerPanel(
     appendChildren(nameGroup, nameLabel, nameInput);
 
     const hostGroup = createElement("div", { class: "form-group" });
-    const hostLabel = createElement("label", { class: "form-label" }, "Host Address");
+    const hostLabel = createElement("label", { class: "form-label" }, t("Host Address", "Адрес сервера"));
     const hostAddrInput = createElement("input", {
       class: "form-input",
       type: "text",
@@ -279,9 +280,9 @@ export function createServerPanel(
 
     const footer = createElement("div", { class: "modal-footer" });
     const cancelBtn = createElement("button", { class: "btn-ghost", type: "button" });
-    setText(cancelBtn, "Cancel");
+    setText(cancelBtn, t("Cancel", "Отмена"));
     const saveBtn = createElement("button", { class: "btn-primary", type: "button" });
-    setText(saveBtn, "Add Server");
+    setText(saveBtn, t("Add Server", "Добавить сервер"));
     appendChildren(footer, cancelBtn, saveBtn);
 
     appendChildren(modal, header, body, footer);
@@ -298,7 +299,7 @@ export function createServerPanel(
       // Validate address: must be a valid hostname:port — no paths, no special chars
       if (!/^[\w.-]+(:\d+)?$/.test(addr)) {
         // Show inline validation error via the host input
-        hostAddrInput.setCustomValidity("Invalid server address (expected host or host:port)");
+        hostAddrInput.setCustomValidity(t("Invalid server address (expected host or host:port)", "Введите адрес сервера в формате host или host:port"));
         hostAddrInput.reportValidity();
         return;
       }

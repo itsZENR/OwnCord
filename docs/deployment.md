@@ -211,7 +211,7 @@ For remote access, see the [Port Forwarding Guide](port-forwarding.md) or [Tails
 - [ ] **Change default admin password** -- create a strong Owner password during setup
 - [ ] **Set `admin_allowed_cidrs`** -- restrict admin access to specific IPs if needed
 - [ ] **Enable TLS** -- use `acme` or `manual` mode; avoid `off` in production
-- [ ] **Set `allowed_origins`** -- restrict WebSocket origins to your domain
+- [ ] **Set `allowed_origins`** -- restrict browser API and WebSocket origins to your domain
 - [ ] **Set `trusted_proxies`** -- configure if behind a reverse proxy
 - [ ] **Set stable voice credentials** -- set `livekit_api_key` and `livekit_api_secret` to avoid token breakage on restart
 - [ ] **Set `voice.node_ip`** -- required for remote users behind NAT

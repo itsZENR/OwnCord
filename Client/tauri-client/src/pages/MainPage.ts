@@ -16,7 +16,9 @@ import { createToastContainer } from "@components/Toast";
 import type { ToastContainer } from "@components/Toast";
 import { initToast, teardownToast, showToast } from "@lib/toast";
 import { authStore, clearAuth, updateUser } from "@stores/auth.store";
-import { closeSettings } from "@stores/ui.store";
+import { closeSettings, uiStore, setTransientError } from "@stores/ui.store";
+import { deleteCredential, loadCredential, saveCredential } from "@lib/credentials";
+import { t } from "@lib/i18n";
 import { updatePresence } from "@stores/members.store";
 import { channelsStore, getActiveChannel } from "@stores/channels.store";
 import { dmStore } from "@stores/dm.store";
@@ -47,6 +49,9 @@ import { createUpdateNotifier } from "@components/UpdateNotifier";
 import { createSidebarArea } from "./main-page/SidebarArea";
 import { createChatArea } from "./main-page/ChatArea";
 import { SCREENSHARE_TILE_ID_OFFSET } from "@lib/constants";
+import { startActivitySync } from "@stores/activity.store";
+import { createWorkspaceNavigation } from "./main-page/WorkspaceNavigation";
+import { createDirectCall } from "@components/DirectCall";
 
 const log = createLogger("main-page");
 
@@ -164,6 +169,8 @@ export function createMainPage(options: MainPageOptions): MountableComponent {
     );
 
     // --- Main .app row ---
+    const activity = startActivitySync(api);
+    unsubscribers.push(() => activity.destroy());
     const app = createElement("div", { class: "app", "data-testid": "app-layout" });
 
     // --- Sidebar (server strip + channel sidebar + voice widget + user bar) ---
@@ -200,10 +207,15 @@ export function createMainPage(options: MainPageOptions): MountableComponent {
       getCurrentUserId,
     });
 
+    const navigation = createWorkspaceNavigation(sidebar.sidebarWrapper, chatAreaResult.chatArea, () => { void activity.refresh(); });
+    unsubscribers.push(() => navigation.destroy());
+    const call = createDirectCall(ws, chatAreaResult.chatArea.querySelector(".ch-tools")!);
+    root.appendChild(call.element);
+    unsubscribers.push(() => call.destroy());
     appendChildren(
       app,
       sidebar.sidebarWrapper,
-      chatAreaResult.chatArea,
+      navigation.element,
     );
     root.appendChild(app);
 
@@ -213,6 +225,11 @@ export function createMainPage(options: MainPageOptions): MountableComponent {
       onChangePassword: async (oldPassword, newPassword) => {
         try {
           await api.changePassword(oldPassword, newPassword);
+          const saved = await loadCredential(apiConfig.host);
+          if (saved?.password) {
+            const ok = await saveCredential(apiConfig.host, saved.username, saved.token, newPassword);
+            if (!ok) showToast(t("Could not save credentials. Sign in with your new password next time.", "Пароль изменён, но сохранить его не удалось. При следующем входе введите новый пароль."), "error");
+          }
           showToast("Password changed successfully", "success");
         } catch (err) {
           const msg = err instanceof Error ? err.message : "Failed to change password";
@@ -231,9 +248,16 @@ export function createMainPage(options: MainPageOptions): MountableComponent {
           throw err;
         }
       },
-      onLogout: () => clearAuth(),
+      onLogout: () => {
+        void (async () => {
+          try { await api.logout(); } catch { /* Local logout must still work offline. */ }
+          await deleteCredential(apiConfig.host);
+          clearAuth();
+        })();
+      },
       onDeleteAccount: async (password) => {
         await api.deleteAccount(password);
+        await deleteCredential(apiConfig.host);
         clearAuth();
         showToast("Account deleted successfully", "success");
       },
@@ -290,6 +314,15 @@ export function createMainPage(options: MainPageOptions): MountableComponent {
     toast.mount(root);
     children.push(toast);
     initToast(toast);
+    const displayPendingError = (): void => {
+      const error = uiStore.getState().transientError;
+      if (error) {
+        setTransientError(null);
+        showToast(error, "error");
+      }
+    };
+    unsubscribers.push(uiStore.subscribeSelector((s) => s.transientError, displayPendingError));
+    displayPendingError();
 
     // Message loading controller
     msgCtrl = createMessageController({

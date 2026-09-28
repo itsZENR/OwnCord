@@ -8,6 +8,8 @@ import {
   qs,
 } from "@lib/dom";
 import { createIcon } from "@lib/icons";
+import { describeError, getLanguage, setLanguage, t } from "@lib/i18n";
+import { isTauri } from "@lib/platform";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -62,7 +64,7 @@ export interface LoginFormApi {
   /** Set the host input value (called when ServerPanel clicks a server). */
   setHost(host: string): void;
   /** Set credentials (called for auto-fill from profile or credential store). */
-  setCredentials(username: string, password?: string): void;
+  setCredentials(username: string, password?: string, remember?: boolean): void;
   /** Get host input value (for guard checks). */
   getHost(): string;
   /** Focus the host input. */
@@ -95,6 +97,7 @@ export function createLoginForm(opts: LoginFormOptions): LoginFormApi {
   let errorBanner: HTMLDivElement;
   let totpInput: HTMLInputElement;
   let totpSubmitBtn: HTMLButtonElement;
+  let totpError: HTMLParagraphElement;
   let rememberPasswordCheckbox: HTMLInputElement;
   let autoConnectServerName: HTMLSpanElement;
 
@@ -109,7 +112,7 @@ export function createLoginForm(opts: LoginFormOptions): LoginFormApi {
     const settingsBtn = createElement("button", {
       class: "settings-gear",
       type: "button",
-      "aria-label": "Settings",
+      "aria-label": t("Settings", "Настройки"),
     });
     settingsBtn.textContent = "";
     settingsBtn.appendChild(createIcon("settings", 16));
@@ -158,11 +161,11 @@ export function createLoginForm(opts: LoginFormOptions): LoginFormApi {
       logoSvg.appendChild(t);
     }
     const logoTitle = createElement("h1", {}, "OwnCord");
-    const logoSubtitle = createElement("p", {}, "Connect to your server");
+    const logoSubtitle = createElement("p", {}, t("Connect to your server", "Ваш сервер. Ваша команда."));
     appendChildren(formLogo, logoSvg, logoTitle, logoSubtitle);
 
     // Form title
-    formTitle = createElement("h1", {}, "Login");
+    formTitle = createElement("h1", {}, t("Login", "Войти"));
 
     // Error banner (hidden by default via CSS display:none, shown with .visible)
     errorBanner = createElement("div", {
@@ -175,15 +178,19 @@ export function createLoginForm(opts: LoginFormOptions): LoginFormApi {
     form.setAttribute("novalidate", "");
 
     // Host
-    const hostGroup = buildFormGroup("host", "Server Address", "text", "localhost:8443");
+    const hostGroup = buildFormGroup("host", t("Server Address", "Адрес сервера"), "text", "localhost:8443");
     hostInput = qs("input", hostGroup)!;
+    hostInput.addEventListener("input", () => {
+      passwordInput.value = "";
+      rememberPasswordCheckbox.checked = false;
+    }, { signal });
 
     // Username
-    const usernameGroup = buildFormGroup("username", "Username", "text", "");
+    const usernameGroup = buildFormGroup("username", t("Username", "Имя пользователя"), "text", "");
     usernameInput = qs("input", usernameGroup)!;
 
     // Password
-    const passwordGroup = buildFormGroup("password", "Password", "password", "");
+    const passwordGroup = buildFormGroup("password", t("Password", "Пароль"), "password", "");
     passwordInput = qs("input", passwordGroup)!;
 
     // Remember password checkbox
@@ -195,11 +202,16 @@ export function createLoginForm(opts: LoginFormOptions): LoginFormApi {
     const rememberLabel = createElement("label", {
       for: "remember-password",
       class: "remember-password-label",
-    }, "Remember password");
+    }, isTauri()
+      ? t("Remember password", "Запомнить пароль")
+      : t("Remember sign-in", "Запомнить вход"));
+    rememberLabel.title = isTauri()
+      ? t("The password is stored in Windows Credential Manager.", "Пароль хранится в диспетчере учётных данных Windows.")
+      : t("The browser stores a revocable session token, never the password.", "Браузер сохраняет отзывной токен сеанса, но не пароль.");
     appendChildren(rememberGroup, rememberPasswordCheckbox, rememberLabel);
 
     // Invite code (register only, hidden by default)
-    inviteGroup = buildFormGroup("invite", "Invite Code", "text", "");
+    inviteGroup = buildFormGroup("invite", t("Invite Code", "Код приглашения"), "text", "");
     inviteGroup.classList.add("form-group--hidden");
     inviteInput = qs("input", inviteGroup)!;
 
@@ -208,7 +220,7 @@ export function createLoginForm(opts: LoginFormOptions): LoginFormApi {
       class: "btn-primary",
       type: "submit",
     });
-    submitBtnText = createElement("span", { class: "btn-text" }, "Login");
+    submitBtnText = createElement("span", { class: "btn-text" }, t("Login", "Войти"));
     const spinnerWrapper = createElement("span", { class: "btn-spinner" });
     const spinner = createElement("div", { class: "spinner" });
     spinnerWrapper.appendChild(spinner);
@@ -216,7 +228,7 @@ export function createLoginForm(opts: LoginFormOptions): LoginFormApi {
 
     // Toggle mode link
     const formSwitch = createElement("div", { class: "form-switch" });
-    toggleModeBtn = createElement("a", {}, "Need an account? Register");
+    toggleModeBtn = createElement("a", {}, t("Need an account? Register", "Нет аккаунта? Зарегистрироваться"));
     formSwitch.appendChild(toggleModeBtn);
 
     appendChildren(form, hostGroup, usernameGroup, passwordGroup, rememberGroup, inviteGroup, submitBtn, formSwitch);
@@ -226,7 +238,13 @@ export function createLoginForm(opts: LoginFormOptions): LoginFormApi {
     toggleModeBtn.addEventListener("click", handleToggleMode, { signal });
 
     appendChildren(formContainer, formLogo, errorBanner, form);
-    appendChildren(panel, settingsBtn, formContainer);
+    const language = createElement("select", { class: "login-language", "aria-label": "Language / Язык" });
+    for (const [value, label] of [["ru", "Русский"], ["en", "English"]] as const) {
+      language.appendChild(createElement("option", { value }, label));
+    }
+    language.value = getLanguage();
+    language.addEventListener("change", () => setLanguage(language.value === "ru" ? "ru" : "en"), { signal });
+    appendChildren(panel, settingsBtn, language, formContainer);
     return panel;
   }
 
@@ -244,7 +262,7 @@ export function createLoginForm(opts: LoginFormOptions): LoginFormApi {
       name: id,
       type: inputType,
       placeholder,
-      autocomplete: inputType === "password" ? "current-password" : "off",
+      autocomplete: inputType === "password" ? "current-password" : id === "username" ? "username" : "off",
     });
     if (id === "host") {
       input.setAttribute("required", "");
@@ -258,7 +276,7 @@ export function createLoginForm(opts: LoginFormOptions): LoginFormApi {
       const toggle = createElement("button", {
         class: "password-toggle",
         type: "button",
-        "aria-label": "Toggle password visibility",
+        "aria-label": t("Toggle password visibility", "Показать или скрыть пароль"),
       });
       toggle.appendChild(createIcon("eye", 16));
       toggle.addEventListener(
@@ -283,10 +301,10 @@ export function createLoginForm(opts: LoginFormOptions): LoginFormApi {
   function buildTotpOverlay(): HTMLDivElement {
     const overlay = createElement("div", { class: "totp-overlay totp-overlay--hidden" });
     const card = createElement("div", { class: "totp-card" });
-    const title = createElement("h2", { class: "totp-title" }, "Two-Factor Authentication");
+    const title = createElement("h2", { class: "totp-title" }, t("Two-Factor Authentication", "Двухфакторная проверка"));
     const description = createElement("p", {
       class: "totp-subtitle",
-    }, "Enter the 6-digit code from your authenticator app.");
+    }, t("Enter the 6-digit code from your authenticator app.", "Введите шестизначный код из приложения-аутентификатора."));
 
     totpInput = createElement("input", {
       class: "form-input",
@@ -301,12 +319,12 @@ export function createLoginForm(opts: LoginFormOptions): LoginFormApi {
     totpSubmitBtn = createElement("button", {
       class: "btn-primary",
       type: "button",
-    }, "Verify");
+    }, t("Verify", "Подтвердить"));
 
     const cancelBtn = createElement("button", {
       class: "totp-back",
       type: "button",
-    }, "Cancel");
+    }, t("Cancel", "Отмена"));
 
     totpSubmitBtn.addEventListener("click", handleTotpSubmit, { signal });
     cancelBtn.addEventListener("click", handleTotpCancel, { signal });
@@ -323,7 +341,8 @@ export function createLoginForm(opts: LoginFormOptions): LoginFormApi {
       { signal },
     );
 
-    appendChildren(card, title, description, totpInput, totpSubmitBtn, cancelBtn);
+    totpError = createElement("p", { class: "totp-error", role: "alert" });
+    appendChildren(card, title, description, totpInput, totpError, totpSubmitBtn, cancelBtn);
     overlay.appendChild(card);
     return overlay;
   }
@@ -342,7 +361,7 @@ export function createLoginForm(opts: LoginFormOptions): LoginFormApi {
     const cancelBtn = createElement("button", {
       class: "btn-ghost auto-connect-cancel",
       type: "button",
-    }, "Cancel");
+    }, t("Cancel", "Отмена"));
 
     cancelBtn.addEventListener("click", () => {
       transitionTo("idle");
@@ -394,11 +413,11 @@ export function createLoginForm(opts: LoginFormOptions): LoginFormApi {
     submitBtn.classList.toggle("loading", isLoading);
 
     if (formState === "connecting" || formState === "auto-connecting") {
-      setText(submitBtnText, "Connecting\u2026");
+      setText(submitBtnText, t("Connecting\u2026", "Подключаемся…"));
     } else if (formState === "loading") {
-      setText(submitBtnText, formMode === "login" ? "Logging in\u2026" : "Registering\u2026");
+      setText(submitBtnText, formMode === "login" ? t("Logging in\u2026", "Входим…") : t("Registering\u2026", "Создаём аккаунт…"));
     } else {
-      setText(submitBtnText, formMode === "login" ? "Login" : "Register");
+      setText(submitBtnText, formMode === "login" ? t("Login", "Войти") : t("Register", "Регистрация"));
     }
   }
 
@@ -463,13 +482,15 @@ export function createLoginForm(opts: LoginFormOptions): LoginFormApi {
   // ---------------------------------------------------------------------------
 
   function handleToggleMode(): void {
+    if (formState === "loading" || formState === "connecting" || formState === "auto-connecting") return;
     formMode = formMode === "login" ? "register" : "login";
+    passwordInput.autocomplete = formMode === "login" ? "current-password" : "new-password";
 
-    setText(formTitle, formMode === "login" ? "Login" : "Register");
-    setText(submitBtnText, formMode === "login" ? "Login" : "Register");
+    setText(formTitle, formMode === "login" ? t("Login", "Войти") : t("Register", "Регистрация"));
+    setText(submitBtnText, formMode === "login" ? t("Login", "Войти") : t("Register", "Регистрация"));
     setText(
       toggleModeBtn,
-      formMode === "login" ? "Need an account? Register" : "Already have an account? Login",
+      formMode === "login" ? t("Need an account? Register", "Нет аккаунта? Зарегистрироваться") : t("Already have an account? Login", "Уже есть аккаунт? Войти"),
     );
 
     inviteGroup.classList.toggle("form-group--hidden", formMode === "login");
@@ -486,21 +507,21 @@ export function createLoginForm(opts: LoginFormOptions): LoginFormApi {
     const password = passwordInput.value;
 
     if (!host) {
-      return "Server address is required.";
+      return t("Server address is required.", "Введите адрес сервера.");
     }
     if (!username) {
-      return "Username is required.";
+      return t("Username is required.", "Введите имя пользователя.");
     }
     if (!password) {
-      return "Password is required.";
+      return t("Password is required.", "Введите пароль.");
     }
     if (password.length < MIN_PASSWORD_LENGTH) {
-      return `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`;
+      return t(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`, `Пароль должен содержать не менее ${MIN_PASSWORD_LENGTH} символов.`);
     }
     if (formMode === "register") {
       const inviteCode = inviteInput.value.trim();
       if (!inviteCode) {
-        return "Invite code is required for registration.";
+        return t("Invite code is required for registration.", "Введите код приглашения для регистрации.");
       }
     }
     return null;
@@ -545,7 +566,7 @@ export function createLoginForm(opts: LoginFormOptions): LoginFormApi {
       } else {
         message = String(err);
       }
-      transitionTo("error", message);
+      transitionTo("error", describeError(message));
     }
   }
 
@@ -559,16 +580,17 @@ export function createLoginForm(opts: LoginFormOptions): LoginFormApi {
     }
 
     totpSubmitBtn.disabled = true;
-    setText(totpSubmitBtn, "Verifying\u2026");
+    setText(totpSubmitBtn, t("Verifying\u2026", "Проверяем…"));
 
     try {
       await onTotpSubmit(code);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Verification failed.";
-      transitionTo("error", message);
+      // Keep the code input visible so a mistyped code can be retried.
+      totpError.textContent = describeError(message);
     } finally {
       totpSubmitBtn.disabled = false;
-      setText(totpSubmitBtn, "Verify");
+      setText(totpSubmitBtn, t("Verify", "Подтвердить"));
     }
   }
 
@@ -587,6 +609,7 @@ export function createLoginForm(opts: LoginFormOptions): LoginFormApi {
     autoConnectOverlayElement: autoConnectOverlay,
 
     showTotp(): void {
+      totpError.textContent = "";
       transitionTo("totp");
     },
 
@@ -600,7 +623,7 @@ export function createLoginForm(opts: LoginFormOptions): LoginFormApi {
     },
 
     showError(message: string): void {
-      transitionTo("error", message);
+      transitionTo("error", describeError(message));
     },
 
     resetToIdle(): void {
@@ -616,15 +639,18 @@ export function createLoginForm(opts: LoginFormOptions): LoginFormApi {
     },
 
     setHost(host: string): void {
+      if (hostInput.value !== host) {
+        usernameInput.value = "";
+        passwordInput.value = "";
+        rememberPasswordCheckbox.checked = false;
+      }
       hostInput.value = host;
     },
 
-    setCredentials(username: string, password?: string): void {
+    setCredentials(username: string, password?: string, remember = !!password): void {
       usernameInput.value = username;
-      if (password) {
-        passwordInput.value = password;
-        rememberPasswordCheckbox.checked = true;
-      }
+      passwordInput.value = password ?? "";
+      rememberPasswordCheckbox.checked = remember;
     },
 
     getHost(): string {

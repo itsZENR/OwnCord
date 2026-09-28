@@ -63,6 +63,12 @@ func TestGenerateSelfSignedProducesValidCert(t *testing.T) {
 	if !leaf.IsCA {
 		t.Error("expected IsCA = true for self-signed cert")
 	}
+	if err := leaf.VerifyHostname("localhost"); err != nil {
+		t.Errorf("certificate does not cover localhost: %v", err)
+	}
+	if err := leaf.VerifyHostname("127.0.0.1"); err != nil {
+		t.Errorf("certificate does not cover 127.0.0.1: %v", err)
+	}
 }
 
 func TestGenerateSelfSignedInvalidCertPath(t *testing.T) {

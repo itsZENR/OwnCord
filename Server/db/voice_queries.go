@@ -10,7 +10,17 @@ import (
 // channel. If the user is already in a different channel, the old row is
 // replaced. Muted, deafened, and speaking are reset to false on join.
 func (d *DB) JoinVoiceChannel(userID, channelID int64) error {
-	_, err := d.sqlDB.Exec(
+	tx, err := d.sqlDB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	// DELETE and INSERT in one transaction finalizes the old session exactly
+	// once, including callers that switch channels without an explicit leave.
+	if _, err = tx.Exec(`DELETE FROM voice_states WHERE user_id = ?`, userID); err != nil {
+		return err
+	}
+	_, err = tx.Exec(
 		`INSERT INTO voice_states (user_id, channel_id, muted, deafened, speaking, camera, screenshare)
 		 VALUES (?, ?, 0, 0, 0, 0, 0)
 		 ON CONFLICT(user_id) DO UPDATE SET
@@ -26,7 +36,7 @@ func (d *DB) JoinVoiceChannel(userID, channelID int64) error {
 	if err != nil {
 		return fmt.Errorf("JoinVoiceChannel: %w", err)
 	}
-	return nil
+	return tx.Commit()
 }
 
 // LeaveVoiceChannel removes the user's voice state entirely.
@@ -37,6 +47,13 @@ func (d *DB) LeaveVoiceChannel(userID int64) error {
 		return fmt.Errorf("LeaveVoiceChannel: %w", err)
 	}
 	return nil
+}
+
+// LeaveVoiceChannelIfIn prevents a delayed cleanup retry for an old channel
+// from deleting a participant's newer connection.
+func (d *DB) LeaveVoiceChannelIfIn(userID, channelID int64) error {
+	_, err := d.sqlDB.Exec(`DELETE FROM voice_states WHERE user_id = ? AND channel_id = ?`, userID, channelID)
+	return err
 }
 
 // GetVoiceState returns the current voice state for the given user,
@@ -163,11 +180,20 @@ func (d *DB) ClearVoiceState(userID int64) error {
 // ClearAllVoiceStates removes all voice state rows. Called on server startup
 // to clear stale state from a previous run.
 func (d *DB) ClearAllVoiceStates() error {
-	_, err := d.sqlDB.Exec(`DELETE FROM voice_states`)
+	tx, err := d.sqlDB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	// Discard unfinished portions from the previous process; do not award downtime.
+	if _, err = tx.Exec(`DELETE FROM voice_activity_clock`); err != nil {
+		return err
+	}
+	_, err = tx.Exec(`DELETE FROM voice_states`)
 	if err != nil {
 		return fmt.Errorf("ClearAllVoiceStates: %w", err)
 	}
-	return nil
+	return tx.Commit()
 }
 
 // CountActiveCameras returns the number of users with camera enabled in the
