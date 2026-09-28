@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // --- Mocks must be declared before imports ---
+const mockCaptureScreen = vi.hoisted(() => vi.fn());
+vi.mock("@lib/screenCapture", () => ({ captureScreen: mockCaptureScreen }));
 
 vi.mock("../../src/lib/platform/index", () => ({
   isTauri: () => true,
@@ -19,6 +21,9 @@ const mockRoom = vi.hoisted(() => ({
   localParticipant: {
     setMicrophoneEnabled: vi.fn().mockResolvedValue(undefined),
     setCameraEnabled: vi.fn().mockResolvedValue(undefined),
+    publishTrack: vi.fn().mockResolvedValue(undefined),
+    unpublishTrack: vi.fn().mockResolvedValue(undefined),
+    setScreenShareEnabled: vi.fn().mockResolvedValue(undefined),
     getTrackPublication: vi.fn().mockReturnValue(undefined),
     trackPublications: new Map(),
     identity: "user-1",
@@ -206,6 +211,8 @@ describe("LiveKitSession", () => {
     mockRoom.localParticipant.trackPublications = new Map();
     mockRoom.connect.mockResolvedValue(undefined);
     mockRoom.localParticipant.setMicrophoneEnabled.mockResolvedValue(undefined);
+    mockRoom.localParticipant.publishTrack.mockReset().mockResolvedValue(undefined);
+    mockCaptureScreen.mockReset();
   });
 
   afterEach(() => {
@@ -774,6 +781,67 @@ describe("LiveKitSession", () => {
       await session.enableScreenshare();
       // Should not send WS message without an active room
       expect(mockWs.send).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("screen sharing lifecycle", () => {
+    function setupScreen() {
+      const media = Object.assign(new EventTarget(), { kind: "video", readyState: "live", id: "screen" });
+      const track = { kind: "video", mediaStreamTrack: media, stop: vi.fn(() => { media.readyState = "ended"; }) };
+      const ws = { send: vi.fn() };
+      (session as any).room = mockRoom;
+      session.setWsClient(ws as any);
+      vi.spyOn((session as any)._audioPipeline, "setupAudioPipeline").mockImplementation(() => {});
+      mockCaptureScreen.mockResolvedValue({ tracks: [track], audioUnavailable: false });
+      return { media, track, ws };
+    }
+
+    it("marks the screen ready only after publishing and ignores duplicate starts", async () => {
+      const { track } = setupScreen();
+      const published = createDeferred<void>();
+      mockRoom.localParticipant.publishTrack.mockReturnValue(published.promise);
+      const starting = session.enableScreenshare();
+      await Promise.resolve();
+      expect(setLocalScreenshare).not.toHaveBeenCalledWith(true);
+      await session.enableScreenshare();
+      expect(mockCaptureScreen).toHaveBeenCalledOnce();
+      published.resolve();
+      await starting;
+      expect(setLocalScreenshare).toHaveBeenLastCalledWith(true);
+      expect((session as any).manualScreenTracks).toEqual([track]);
+    });
+
+    it("stops all tracks after publishing fails", async () => {
+      const { track, ws } = setupScreen();
+      mockRoom.localParticipant.publishTrack.mockRejectedValueOnce(new Error("Publish failed"));
+      await session.enableScreenshare();
+      expect(track.stop).toHaveBeenCalledOnce();
+      expect((session as any).manualScreenTracks).toEqual([]);
+      expect(setLocalScreenshare).toHaveBeenLastCalledWith(false);
+      expect(ws.send).not.toHaveBeenCalledWith({ type: "voice_screenshare", payload: { enabled: true } });
+    });
+
+    it("discards a picker result after leaving voice", async () => {
+      const { track } = setupScreen();
+      const capture = createDeferred<any>();
+      mockCaptureScreen.mockReturnValue(capture.promise);
+      const starting = session.enableScreenshare();
+      session.leaveVoice();
+      capture.resolve({ tracks: [track], audioUnavailable: false });
+      await starting;
+      expect(track.stop).toHaveBeenCalledOnce();
+      expect(mockRoom.localParticipant.publishTrack).not.toHaveBeenCalled();
+      expect(setLocalScreenshare).not.toHaveBeenCalledWith(true);
+    });
+
+    it("clears sharing when stopped from the system capture control", async () => {
+      const { media, track, ws } = setupScreen();
+      await session.enableScreenshare();
+      media.dispatchEvent(new Event("ended"));
+      await Promise.resolve();
+      expect(track.stop).toHaveBeenCalledOnce();
+      expect(setLocalScreenshare).toHaveBeenLastCalledWith(false);
+      expect(ws.send).toHaveBeenLastCalledWith({ type: "voice_screenshare", payload: { enabled: false } });
     });
   });
 

@@ -227,7 +227,7 @@ export function createVideoGrid(): VideoGridComponent {
     const label = createElement("div", { class: "video-username" }, username);
 
     const cell = createElement("div", {
-      class: "video-cell",
+      class: config?.isScreenshare ? "video-cell screenshare" : "video-cell",
       "data-user-id": String(userId),
     });
     appendChildren(cell, video, label);

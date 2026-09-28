@@ -1100,8 +1100,7 @@ describe("ChannelSidebar", () => {
     sidebarWithWatch.destroy?.();
   });
 
-  // T12: Self-user → no preview attached
-  it("does not attach stream preview for self user", () => {
+  it("attaches stream preview for the local user too", () => {
     mockAttachStreamPreview.mockClear();
     authStore.setState(() => ({
       token: "tok",
@@ -1126,8 +1125,8 @@ describe("ChannelSidebar", () => {
     }));
     sidebar.mount(container);
 
-    // Should not have called attachStreamPreview for self
-    expect(mockAttachStreamPreview).not.toHaveBeenCalled();
+    expect(mockAttachStreamPreview).toHaveBeenCalledWith(expect.any(HTMLElement), 42, "Me",
+      false, true, expect.any(AbortSignal), expect.any(Function), undefined);
   });
 
   // T20: Constant shared — sidebar uses SCREENSHARE_TILE_ID_OFFSET from constants

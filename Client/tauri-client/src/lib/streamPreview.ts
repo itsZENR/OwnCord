@@ -11,7 +11,8 @@
 
 import { createElement } from "@lib/dom";
 import { createIcon } from "@lib/icons";
-import { getRemoteVideoStream } from "@lib/livekitSession";
+import { getRemoteVideoStream, getLocalScreenshareStream, getLocalCameraStream } from "@lib/livekitSession";
+import { authStore } from "@stores/auth.store";
 
 /** Internal state tracked per voice-user-item row for cleanup. */
 interface PreviewState {
@@ -59,12 +60,13 @@ function showPreview(
   // Try screenshare first, then camera
   let stream: MediaStream | null = null;
   let isScreen = false;
+  const isSelf = authStore.getState().user?.id === userId;
   if (hasScreenshare) {
-    stream = getRemoteVideoStream(userId, "screenshare");
+    stream = isSelf ? getLocalScreenshareStream() : getRemoteVideoStream(userId, "screenshare");
     if (stream !== null) isScreen = true;
   }
   if (stream === null && hasCamera) {
-    stream = getRemoteVideoStream(userId, "camera");
+    stream = isSelf ? getLocalCameraStream() : getRemoteVideoStream(userId, "camera");
     isScreen = false;
   }
 

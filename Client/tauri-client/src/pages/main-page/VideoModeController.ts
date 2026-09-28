@@ -7,6 +7,7 @@ import { voiceStore } from "@stores/voice.store";
 import { getLocalCameraStream, getLocalScreenshareStream } from "@lib/livekitSession";
 import { SCREENSHARE_TILE_ID_OFFSET } from "@lib/constants";
 import type { VideoGridComponent } from "@components/VideoGrid";
+import { t } from "@lib/i18n";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -84,11 +85,8 @@ export function createVideoModeController(
       if (videoMode) showChat();
       return;
     }
-    const channelUsers = voice.voiceUsers.get(channelId);
-    if (!channelUsers) {
-      if (videoMode) showChat();
-      return;
-    }
+    // Local preview must not wait for a server voice-state echo (or a peer).
+    const channelUsers = voice.voiceUsers.get(channelId) ?? new Map();
 
     // Check if any camera or screenshare is active
     let anyVideoOn = voice.localCamera || voice.localScreenshare;
@@ -135,7 +133,7 @@ export function createVideoModeController(
           const me = channelUsers.get(currentUserId);
           videoGrid.addStream(
             screenshareUserId,
-            me?.username ? `${me.username} (Screen)` : "Your Screen",
+            me?.username ? `${me.username} (${t("Screen", "Экран")})` : t("Your Screen", "Ваш экран"),
             localStream,
             { isSelf: true, audioUserId: currentUserId, isScreenshare: true },
           );

@@ -99,6 +99,21 @@ describe("createVideoModeController", () => {
     expect(ctrl.isVideoMode()).toBe(false);
   });
 
+  it("can preview the local screen alone before server voice state arrives", () => {
+    const stream = {} as MediaStream;
+    mockVoiceStoreGetState.mockReturnValue(makeVoiceState({ currentChannelId: 10, localScreenshare: true }));
+    mockGetLocalScreenshareStream.mockReturnValue(stream);
+    const grid = makeVideoGrid();
+    const ctrl = createVideoModeController({ slots: makeSlots(), videoGrid: grid, getCurrentUserId: () => 1 });
+    ctrl.checkVideoMode();
+    ctrl.showVideoGrid();
+    ctrl.setFocus(1_000_001);
+    expect(grid.addStream).toHaveBeenCalledWith(1_000_001, "Your Screen", stream,
+      { isSelf: true, audioUserId: 1, isScreenshare: true });
+    expect(ctrl.isVideoMode()).toBe(true);
+    expect(grid.setFocusedTile).toHaveBeenCalledWith(1_000_001);
+  });
+
   it("checkVideoMode does NOT auto-switch to video grid when remote has camera", () => {
     const users = new Map([[2, { userId: 2, camera: true, screenshare: false, username: "bob" }]]);
     mockVoiceStoreGetState.mockReturnValue(

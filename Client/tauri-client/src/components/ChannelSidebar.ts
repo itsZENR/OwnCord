@@ -332,9 +332,8 @@ function renderVoiceChannelItem(
         row.style.cursor = "pointer";
       }
 
-      // Hover/focus preview for remote users with video
-      if ((currentUser === null || currentUser.id !== user.userId)
-        && (user.camera || user.screenshare)) {
+      // Local and remote streams use the same muted preview.
+      if (user.camera || user.screenshare) {
         const tileId = user.screenshare
           ? user.userId + SCREENSHARE_TILE_ID_OFFSET
           : user.userId;

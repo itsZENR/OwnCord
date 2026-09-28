@@ -5,7 +5,6 @@ import {
   Track,
   VideoPresets,
   ScreenSharePresets,
-  createLocalScreenTracks,
   createLocalVideoTrack,
   type RemoteTrack,
   type RemoteTrackPublication,
@@ -43,6 +42,8 @@ import {
 import { AudioPipeline } from "@lib/audioPipeline";
 import { AudioElements } from "@lib/audioElements";
 import { DeviceManager } from "@lib/deviceManager";
+import { captureScreen } from "@lib/screenCapture";
+import { t } from "@lib/i18n";
 
 const log = createLogger("livekitSession");
 
@@ -92,7 +93,7 @@ const SCREENSHARE_PRESETS: Record<StreamQuality, ScreenShareCaptureOptions> = {
   low:    { audio: true, resolution: ScreenSharePresets.h720fps5.resolution },
   medium: { audio: true, resolution: ScreenSharePresets.h1080fps15.resolution, contentHint: "detail" },
   high:   { audio: true, resolution: ScreenSharePresets.h1080fps30.resolution, contentHint: "detail" },
-  source: { audio: true, contentHint: "detail" },  // no resolution cap — use native source resolution
+  source: { audio: true, contentHint: "detail", resolution: { width: 0, height: 0 } },
 };
 
 const SCREENSHARE_PUBLISH_BITRATES: Record<StreamQuality, number> = {
@@ -168,6 +169,9 @@ export class LiveKitSession {
   /** Manually published local tracks (camera/screenshare) for explicit cleanup. */
   private manualCameraTrack: LocalVideoTrack | null = null;
   private manualScreenTracks: LocalTrack[] = [];
+  private screenShareRequest = 0;
+  private screenShareStarting = false;
+  private screenEndedCleanup: (() => void) | null = null;
 
   // --- Room factory ---
 
@@ -790,8 +794,9 @@ export class LiveKitSession {
     this.pendingJoin = null;
     // Clean up manually published tracks.
     if (this.manualCameraTrack !== null) { this.manualCameraTrack.stop(); this.manualCameraTrack = null; }
-    for (const t of this.manualScreenTracks) t.stop();
-    this.manualScreenTracks = [];
+    this.screenShareRequest++;
+    this.screenShareStarting = false;
+    this.stopManualScreenTracks();
     if (sendWs && this.ws !== null) {
       this.ws.send({ type: "voice_leave", payload: {} });
     }
@@ -936,15 +941,30 @@ export class LiveKitSession {
       this.onErrorCallback?.("Join a voice channel first");
       return;
     }
-    setLocalScreenshare(true);
+    if (this.screenShareStarting || this.manualScreenTracks.length > 0) return;
+    const room = this.room;
+    const ws = this.ws;
+    const request = ++this.screenShareRequest;
+    this.screenShareStarting = true;
     const quality = getStreamQuality();
     try {
-      this.stopManualScreenTracks();
-      const screenTracks = await createLocalScreenTracks(SCREENSHARE_PRESETS[quality]);
+      const { tracks: screenTracks, audioUnavailable } = await captureScreen(SCREENSHARE_PRESETS[quality]);
+      if (request !== this.screenShareRequest || room !== this.room) {
+        for (const track of screenTracks) track.stop();
+        return;
+      }
       this.manualScreenTracks = screenTracks;
+      const videoTrack = screenTracks.find((track) => track.kind === Track.Kind.Video)?.mediaStreamTrack;
+      if (!videoTrack || videoTrack.readyState === "ended") throw new Error("Screen capture ended before publishing");
+      const onEnded = (): void => {
+        if (request === this.screenShareRequest) void this.disableScreenshare();
+      };
+      videoTrack.addEventListener("ended", onEnded);
+      this.screenEndedCleanup = () => videoTrack.removeEventListener("ended", onEnded);
       for (const track of screenTracks) {
+        if (request !== this.screenShareRequest || room !== this.room) return;
         const isVideo = track.kind === Track.Kind.Video;
-        await this.room.localParticipant.publishTrack(track, {
+        await room.localParticipant.publishTrack(track, {
           source: isVideo ? Track.Source.ScreenShare : Track.Source.ScreenShareAudio,
           simulcast: false,  // No simulcast for screenshare — send full quality
           ...(isVideo ? {
@@ -954,43 +974,68 @@ export class LiveKitSession {
             },
           } : {}),
         });
+        if (request !== this.screenShareRequest || room !== this.room) {
+          await room.localParticipant.unpublishTrack(track.mediaStreamTrack);
+          track.stop();
+          return;
+        }
       }
-      this.ws.send({ type: "voice_screenshare", payload: { enabled: true } });
+      ws.send({ type: "voice_screenshare", payload: { enabled: true } });
+      // Notify the UI only when the stream exists, including when alone.
+      setLocalScreenshare(true);
+      if (audioUnavailable) {
+        this.onErrorCallback?.(t(
+          "Screen sharing started without system audio to prevent call echo. To share sound, select a browser tab or update your browser / Microsoft Edge WebView2.",
+          "Трансляция запущена без системного звука, чтобы не повторять голоса из звонка. Для передачи звука выберите вкладку браузера или обновите браузер / Microsoft Edge WebView2.",
+        ));
+      }
       // Re-apply audio pipeline — same renegotiation risk as camera.
       this._audioPipeline.setupAudioPipeline();
       this.reapplyMuteGain();
       log.info("Screenshare enabled", { quality, maxBitrate: SCREENSHARE_PUBLISH_BITRATES[quality] });
     } catch (err) {
+      if (request !== this.screenShareRequest || room !== this.room) return;
+      this.stopManualScreenTracks();
       setLocalScreenshare(false);
       log.error("Failed to enable screenshare", err);
       if (err instanceof DOMException && err.name === "NotAllowedError") {
-        this.onErrorCallback?.("Screen sharing permission denied");
+        // Closing the system picker is a normal cancellation.
+        log.debug("Screen sharing cancelled");
       } else {
-        this.onErrorCallback?.("Failed to start screen sharing");
+        this.onErrorCallback?.(t("Could not start screen sharing. Select an available screen or window and try again.",
+          "Не удалось начать трансляцию. Выберите доступный экран или окно и повторите попытку."));
       }
+    } finally {
+      if (request === this.screenShareRequest) this.screenShareStarting = false;
     }
   }
 
   async disableScreenshare(): Promise<void> {
+    const request = ++this.screenShareRequest;
+    this.screenShareStarting = false;
     try {
       this.stopManualScreenTracks();
       if (this.room !== null) await this.room.localParticipant.setScreenShareEnabled(false);
     } catch (err) {
       log.warn("Failed to disable screenshare track (non-fatal)", err);
     } finally {
-      setLocalScreenshare(false);
-      if (this.ws !== null) this.ws.send({ type: "voice_screenshare", payload: { enabled: false } });
-      log.info("Screenshare disabled");
+      if (request === this.screenShareRequest) {
+        setLocalScreenshare(false);
+        if (this.ws !== null) this.ws.send({ type: "voice_screenshare", payload: { enabled: false } });
+        log.info("Screenshare disabled");
+      }
     }
   }
 
   private stopManualScreenTracks(): void {
-    if (this.manualScreenTracks.length === 0 || this.room === null) return;
+    this.screenEndedCleanup?.();
+    this.screenEndedCleanup = null;
     const tracks = this.manualScreenTracks;
     this.manualScreenTracks = [];
     for (const track of tracks) {
       try {
-        void this.room.localParticipant.unpublishTrack(track.mediaStreamTrack);
+        void this.room?.localParticipant.unpublishTrack(track.mediaStreamTrack)
+          .catch((error) => log.debug("Screen track already unpublished", error));
       } catch { /* already unpublished */ }
       track.stop();
     }
@@ -1061,6 +1106,8 @@ export class LiveKitSession {
 
   getLocalScreenshareStream(): MediaStream | null {
     if (this.room === null) return null;
+    const manual = this.manualScreenTracks.find((track) => track.kind === Track.Kind.Video)?.mediaStreamTrack;
+    if (manual && manual.readyState !== "ended") return new MediaStream([manual]);
     const screenPub = this.room.localParticipant.getTrackPublication(Track.Source.ScreenShare);
     if (screenPub?.track?.mediaStreamTrack) return new MediaStream([screenPub.track.mediaStreamTrack]);
     return null;

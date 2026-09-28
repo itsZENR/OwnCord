@@ -2,10 +2,13 @@ import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from "vite
 
 // Mock livekitSession before importing streamPreview
 const mockGetRemoteVideoStream = vi.fn<(uid: number, type: "camera" | "screenshare") => MediaStream | null>();
+const mockGetLocalScreenshareStream = vi.fn();
 vi.mock("@lib/livekitSession", () => ({
   getRemoteVideoStream: (uid: number, type: "camera" | "screenshare") => mockGetRemoteVideoStream(uid, type),
   setUserVolume: vi.fn(),
   getUserVolume: vi.fn(() => 1),
+  getLocalScreenshareStream: () => mockGetLocalScreenshareStream(),
+  getLocalCameraStream: vi.fn(() => null),
 }));
 
 vi.mock("@lib/icons", () => ({
@@ -18,6 +21,7 @@ vi.mock("@lib/icons", () => ({
 }));
 
 import { attachStreamPreview, attachScrollCollapse } from "../../src/lib/streamPreview";
+import { authStore } from "../../src/stores/auth.store";
 
 // jsdom doesn't implement HTMLVideoElement.play() — provide a mock
 beforeAll(() => {
@@ -55,6 +59,8 @@ describe("streamPreview", () => {
   beforeEach(() => {
     ac = new AbortController();
     mockGetRemoteVideoStream.mockReset();
+    mockGetLocalScreenshareStream.mockReset();
+    authStore.setState((state) => ({ ...state, user: null }));
     vi.useFakeTimers();
   });
 
@@ -62,6 +68,21 @@ describe("streamPreview", () => {
     ac.abort();
     vi.useRealTimers();
     document.body.innerHTML = "";
+  });
+
+  it("shows the local stream without playing its audio or fetching a remote track", () => {
+    authStore.setState((state) => ({ ...state, user: { id: 42, username: "Me", avatar: null, role: "member" } }));
+    const stream = createMockMediaStream();
+    mockGetLocalScreenshareStream.mockReturnValue(stream);
+    const row = createRow(42);
+    attachStreamPreview(row, 42, "Me", true, false, ac.signal);
+    row.dispatchEvent(new MouseEvent("mouseenter"));
+    vi.advanceTimersByTime(300);
+    const video = getPreview(row)?.querySelector("video");
+    expect(video?.srcObject).toBe(stream);
+    expect(video?.muted).toBe(true);
+    expect(video?.className).toBe("preview-screen");
+    expect(mockGetRemoteVideoStream).not.toHaveBeenCalled();
   });
 
   // T3: getRemoteVideoStream room null → null (via mock returning null)

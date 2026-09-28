@@ -20,6 +20,7 @@ import { createEditChannelModal } from "@components/EditChannelModal";
 import { createDeleteChannelModal } from "@components/DeleteChannelModal";
 import { createUserBar } from "@components/UserBar";
 import { createVoiceWidget } from "@components/VoiceWidget";
+import { SCREENSHARE_TILE_ID_OFFSET } from "@lib/constants";
 import { createQuickSwitchOverlay } from "@components/QuickSwitchOverlay";
 import type { QuickSwitchProfile } from "@components/QuickSwitchOverlay";
 import { createVoiceWidgetCallbacks, createSidebarVoiceCallbacks } from "./VoiceCallbacks";
@@ -802,9 +803,13 @@ export function createSidebarArea(opts: SidebarAreaOptions): SidebarAreaResult {
   // ---------------------------------------------------------------------------
 
   const voiceWidgetSlot = createElement("div", {});
-  const voiceWidget = createVoiceWidget(
-    createVoiceWidgetCallbacks(ws, limiters),
-  );
+  const voiceWidget = createVoiceWidget({
+    ...createVoiceWidgetCallbacks(ws, limiters),
+    onPreviewScreenshare: () => {
+      const userId = authStore.getState().user?.id;
+      if (userId !== undefined) opts.onWatchStream?.(userId + SCREENSHARE_TILE_ID_OFFSET);
+    },
+  });
   voiceWidget.mount(voiceWidgetSlot);
   children.push(voiceWidget);
   sidebarWrapper.appendChild(voiceWidgetSlot);

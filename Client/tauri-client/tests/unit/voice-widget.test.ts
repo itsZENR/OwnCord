@@ -84,6 +84,25 @@ describe("VoiceWidget", () => {
     container.remove();
   });
 
+  it("offers local preview only while sharing, including when alone", async () => {
+    const preview = vi.fn();
+    const widget = createVoiceWidget({ onDisconnect: vi.fn(), onMuteToggle: vi.fn(),
+      onDeafenToggle: vi.fn(), onCameraToggle: vi.fn(), onScreenshareToggle: vi.fn(),
+      onPreviewScreenshare: preview });
+    widget.mount(container);
+    const button = container.querySelector<HTMLButtonElement>(".vw-preview-stream")!;
+    expect(button.hidden).toBe(true);
+    voiceStore.setState((state) => ({ ...state, currentChannelId: 1, localScreenshare: true }));
+    await Promise.resolve();
+    expect(button.hidden).toBe(false);
+    button.click();
+    expect(preview).toHaveBeenCalledOnce();
+    voiceStore.setState((state) => ({ ...state, localScreenshare: false }));
+    await Promise.resolve();
+    expect(button.hidden).toBe(true);
+    widget.destroy?.();
+  });
+
   it("renders hidden when not connected to a voice channel", () => {
     const widget = createVoiceWidget({
       onDisconnect: vi.fn(),

@@ -181,7 +181,7 @@
   display: block;
 }
 .vu-preview video.preview-camera { object-fit: cover; }
-.vu-preview video.preview-screen { object-fit: cover; }
+.vu-preview video.preview-screen { object-fit: contain; }
 .vu-preview-placeholder {
   width: 100%;
   aspect-ratio: 16 / 9;
@@ -2175,6 +2175,19 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.video-cell.screenshare video { object-fit: contain; }
+
+.vw-preview-stream {
+  width: 100%;
+  margin-top: 6px;
+  padding: 6px 8px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary);
+  color: var(--text-normal);
+  cursor: pointer;
 }
 
 .video-username {

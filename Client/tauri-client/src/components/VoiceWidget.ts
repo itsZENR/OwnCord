@@ -30,6 +30,7 @@ export interface VoiceWidgetOptions {
   onDeafenToggle(): void;
   onCameraToggle(): void;
   onScreenshareToggle(): void;
+  onPreviewScreenshare?(): void;
 }
 
 const QUALITY_COLORS: Record<QualityLevel, string> = {
@@ -65,6 +66,7 @@ export function createVoiceWidget(options: VoiceWidgetOptions): MountableCompone
   let deafenBtn: HTMLButtonElement | null = null;
   let cameraBtn: HTMLButtonElement | null = null;
   let shareBtn: HTMLButtonElement | null = null;
+  let previewBtn: HTMLButtonElement | null = null;
 
   // Listen-only mode: "Grant Microphone" button
   let grantMicBtn: HTMLButtonElement | null = null;
@@ -201,6 +203,7 @@ export function createVoiceWidget(options: VoiceWidgetOptions): MountableCompone
     if (deafenBtn) { swapIcon(deafenBtn, voice.localDeafened ? "headphones-off" : "headphones"); deafenBtn.setAttribute("aria-pressed", String(voice.localDeafened)); }
     if (cameraBtn) { swapIcon(cameraBtn, voice.localCamera ? "camera-off" : "camera"); cameraBtn.setAttribute("aria-pressed", String(voice.localCamera)); }
     shareBtn?.classList.toggle("active-ctrl", voice.localScreenshare);
+    if (previewBtn) previewBtn.hidden = !voice.localScreenshare;
     if (shareBtn) { swapIcon(shareBtn, voice.localScreenshare ? "monitor-off" : "monitor"); shareBtn.setAttribute("aria-pressed", String(voice.localScreenshare)); }
 
     // Show/hide "Grant Microphone" button based on listen-only state
@@ -306,6 +309,12 @@ export function createVoiceWidget(options: VoiceWidgetOptions): MountableCompone
       "Disconnect", "phone", options.onDisconnect, "disconnect",
     );
     appendChildren(controls, muteBtn, deafenBtn, cameraBtn, shareBtn, disconnectBtn);
+    if (options.onPreviewScreenshare) {
+      previewBtn = createElement("button", { class: "vw-preview-stream", type: "button" },
+        t("View my stream", "Посмотреть свою трансляцию"));
+      previewBtn.hidden = true;
+      previewBtn.addEventListener("click", options.onPreviewScreenshare, { signal: ac.signal });
+    }
 
     // "Grant Microphone" button for listen-only mode
     grantMicBtn = createElement("button", {
@@ -327,6 +336,7 @@ export function createVoiceWidget(options: VoiceWidgetOptions): MountableCompone
     }, { signal: ac.signal });
 
     appendChildren(root, header, statsPane, grantMicBtn, controls);
+    if (previewBtn) root.appendChild(previewBtn);
 
     render();
 
@@ -371,6 +381,7 @@ export function createVoiceWidget(options: VoiceWidgetOptions): MountableCompone
     deafenBtn = null;
     cameraBtn = null;
     shareBtn = null;
+    previewBtn = null;
     grantMicBtn = null;
     signalWrap = null;
     pingLabel = null;
