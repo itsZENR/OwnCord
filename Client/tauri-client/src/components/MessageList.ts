@@ -10,6 +10,7 @@ import { messagesStore, getChannelMessages, hasMoreMessages } from "@stores/mess
 import type { Message } from "@stores/messages.store";
 import { membersStore } from "@stores/members.store";
 import { activityStore } from "@stores/activity.store";
+import { t } from "@lib/i18n";
 
 const log = createLogger("message-list");
 import {
@@ -116,19 +117,28 @@ function buildVirtualItems(messages: readonly Message[]): readonly VirtualItem[]
 
 function renderEmptyState(channelName: string, channelType?: string): HTMLDivElement {
   const isDm = channelType === "dm";
+  const isVoice = channelType === "voice";
 
   const icon = createElement("div", { class: "channel-welcome-icon" });
-  icon.textContent = isDm ? "@" : "#";
+  icon.textContent = isDm ? "@" : isVoice ? "♪" : "#";
 
   const title = createElement("h2", { class: "channel-welcome-title" });
-  title.textContent = isDm
-    ? channelName
-    : `Welcome to #${channelName}!`;
+  if (isDm) {
+    title.textContent = channelName;
+  } else if (isVoice) {
+    title.textContent = t(`Welcome to ${channelName}!`, `Добро пожаловать в ${channelName}!`);
+  } else {
+    title.textContent = `Welcome to #${channelName}!`;
+  }
 
   const text = createElement("p", { class: "channel-welcome-text" });
-  text.textContent = isDm
-    ? `This is the beginning of your direct message history with ${channelName}.`
-    : `This is the start of the #${channelName} channel.`;
+  if (isDm) {
+    text.textContent = `This is the beginning of your direct message history with ${channelName}.`;
+  } else if (isVoice) {
+    text.textContent = t("This is the voice channel chat. Messages stay here after the call ends.", "Это чат голосового канала. Сообщения останутся здесь после звонка.");
+  } else {
+    text.textContent = `This is the start of the #${channelName} channel.`;
+  }
 
   const wrapper = createElement("div", { class: "channel-welcome" });
   wrapper.appendChild(icon);

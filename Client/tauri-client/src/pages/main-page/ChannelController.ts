@@ -23,6 +23,7 @@ import { updateChatHeaderForDm } from "./ChatHeader";
 import type { ChatHeaderRefs } from "./ChatHeader";
 import { dmStore } from "@stores/dm.store";
 import { membersStore } from "@stores/members.store";
+import { t } from "@lib/i18n";
 
 const log = createLogger("channel-ctrl");
 
@@ -277,6 +278,8 @@ export function createChannelController(
       updateChatHeaderForDm(chatHeaderRefs, { username: channelName, status: displayStatus });
     } else if (chatHeaderRefs !== null) {
       updateChatHeaderForDm(chatHeaderRefs, null);
+      setText(chatHeaderRefs.hashEl, channelType === "voice" ? "♪" : "#");
+      setText(chatHeaderRefs.topicEl, channelType === "voice" ? t("Voice channel chat", "Чат голосового канала") : "");
       if (chatHeaderName !== null) {
         setText(chatHeaderName, channelName);
       }

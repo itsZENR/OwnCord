@@ -172,6 +172,7 @@ export function createMainPage(options: MainPageOptions): MountableComponent {
     const activity = startActivitySync(api);
     unsubscribers.push(() => activity.destroy());
     const app = createElement("div", { class: "app", "data-testid": "app-layout" });
+    let openConversation = () => {};
 
     // --- Sidebar (server strip + channel sidebar + voice widget + user bar) ---
     const sidebar = createSidebarArea({
@@ -180,8 +181,13 @@ export function createMainPage(options: MainPageOptions): MountableComponent {
       limiters,
       getRoot: () => root,
       getToast: () => toast,
+      onVoiceOpen: () => {
+        openConversation();
+        videoModeCtrl?.showChat();
+      },
       onWatchStream: (userId) => {
         if (videoModeCtrl === null) return;
+        openConversation();
         videoModeCtrl.checkVideoMode();
         videoModeCtrl.showVideoGrid();
         videoModeCtrl.setFocus(userId);
@@ -209,6 +215,7 @@ export function createMainPage(options: MainPageOptions): MountableComponent {
     });
 
     const navigation = createWorkspaceNavigation(sidebar.sidebarWrapper, chatAreaResult.chatArea, () => { void activity.refresh(); });
+    openConversation = navigation.openConversation;
     unsubscribers.push(() => navigation.destroy());
     const call = createDirectCall(ws, chatAreaResult.chatArea.querySelector(".ch-tools")!);
     root.appendChild(call.element);

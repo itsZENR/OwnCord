@@ -28,5 +28,5 @@ export function createWorkspaceNavigation(sidebar: Element, chat: HTMLElement, r
   conversation.addEventListener("click", () => select(false));
   achievements.addEventListener("click", () => select(true));
   const unsub = channelsStore.subscribeSelector((s) => s.activeChannelId, () => select(false));
-  return { element: content, destroy() { unsub(); page.destroy(); nav.remove(); } };
+  return { element: content, openConversation() { select(false); }, destroy() { unsub(); page.destroy(); nav.remove(); } };
 }

@@ -132,7 +132,8 @@ export interface ChannelReorderData {
 
 export interface ChannelSidebarOptions {
   readonly onVoiceJoin: (channelId: number) => void;
-  readonly onVoiceLeave: () => void;
+  /** Opens the selected voice channel's conversation in the main area. */
+  readonly onVoiceOpen: () => void;
   /** Called when the user clicks the "+" on a category header. */
   readonly onCreateChannel?: (category: string) => void;
   /** Called when the user right-clicks a channel and selects Edit. */
@@ -211,7 +212,7 @@ function renderVoiceChannelItem(
   channel: Channel,
   signal: AbortSignal,
   onVoiceJoin: (channelId: number) => void,
-  onVoiceLeave: () => void,
+  onVoiceOpen: () => void,
   onWatchStream?: (userId: number) => void,
 ): HTMLDivElement {
   const voiceState = voiceStore.getState();
@@ -235,9 +236,9 @@ function renderVoiceChannelItem(
   item.addEventListener(
     "click",
     () => {
-      if (isJoined) {
-        onVoiceLeave();
-      } else {
+      setActiveChannel(channel.id);
+      onVoiceOpen();
+      if (voiceStore.getState().currentChannelId !== channel.id) {
         onVoiceJoin(channel.id);
       }
     },
@@ -627,7 +628,7 @@ function renderChannelItem(
   isActive: boolean,
   signal: AbortSignal,
   onVoiceJoin: (channelId: number) => void,
-  onVoiceLeave: () => void,
+  onVoiceOpen: () => void,
   onEditChannel?: (channel: Channel) => void,
   onDeleteChannel?: (channel: Channel) => void,
   containerEl?: HTMLElement,
@@ -637,7 +638,7 @@ function renderChannelItem(
 ): HTMLDivElement {
   let el: HTMLDivElement;
   if (channel.type === "voice") {
-    el = renderVoiceChannelItem(channel, signal, onVoiceJoin, onVoiceLeave, onWatchStream);
+    el = renderVoiceChannelItem(channel, signal, onVoiceJoin, onVoiceOpen, onWatchStream);
   } else {
     el = renderTextChannelItem(channel, isActive, signal);
   }
@@ -654,7 +655,7 @@ function renderCategoryGroup(
   activeChannelId: number | null,
   signal: AbortSignal,
   onVoiceJoin: (channelId: number) => void,
-  onVoiceLeave: () => void,
+  onVoiceOpen: () => void,
   onCreateChannel?: (category: string) => void,
   onEditChannel?: (channel: Channel) => void,
   onDeleteChannel?: (channel: Channel) => void,
@@ -713,7 +714,7 @@ function renderCategoryGroup(
       const channelsContainer = createElement("div", { class: "category-channels-container" });
       for (const ch of channels) {
         channelsContainer.appendChild(
-          renderChannelItem(ch, ch.id === activeChannelId, signal, onVoiceJoin, onVoiceLeave, onEditChannel, onDeleteChannel, channelsContainer, channels, onReorderChannel, onWatchStream),
+          renderChannelItem(ch, ch.id === activeChannelId, signal, onVoiceJoin, onVoiceOpen, onEditChannel, onDeleteChannel, channelsContainer, channels, onReorderChannel, onWatchStream),
         );
       }
       group.appendChild(channelsContainer);
@@ -723,7 +724,7 @@ function renderCategoryGroup(
     const channelsContainer = createElement("div", { class: "category-channels-container" });
     for (const ch of channels) {
       channelsContainer.appendChild(
-        renderChannelItem(ch, ch.id === activeChannelId, signal, onVoiceJoin, onVoiceLeave, onEditChannel, onDeleteChannel, channelsContainer, channels, onReorderChannel, onWatchStream),
+        renderChannelItem(ch, ch.id === activeChannelId, signal, onVoiceJoin, onVoiceOpen, onEditChannel, onDeleteChannel, channelsContainer, channels, onReorderChannel, onWatchStream),
       );
     }
     group.appendChild(channelsContainer);
@@ -733,7 +734,7 @@ function renderCategoryGroup(
 }
 
 export function createChannelSidebar(options: ChannelSidebarOptions): MountableComponent {
-  const { onVoiceJoin, onVoiceLeave, onCreateChannel, onEditChannel, onDeleteChannel, onReorderChannel, onWatchStream } = options;
+  const { onVoiceJoin, onVoiceOpen, onCreateChannel, onEditChannel, onDeleteChannel, onReorderChannel, onWatchStream } = options;
   const ac = new AbortController();
   let root: HTMLDivElement | null = null;
   let channelList: HTMLDivElement | null = null;
@@ -762,7 +763,7 @@ export function createChannelSidebar(options: ChannelSidebarOptions): MountableC
 
     for (const [category, channels] of grouped) {
       channelList.appendChild(
-        renderCategoryGroup(category, channels, state.activeChannelId, ac.signal, onVoiceJoin, onVoiceLeave, onCreateChannel, onEditChannel, onDeleteChannel, onReorderChannel, onWatchStream),
+        renderCategoryGroup(category, channels, state.activeChannelId, ac.signal, onVoiceJoin, onVoiceOpen, onCreateChannel, onEditChannel, onDeleteChannel, onReorderChannel, onWatchStream),
       );
     }
   }

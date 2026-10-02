@@ -52,7 +52,6 @@ export interface VoiceWidgetCallbacks {
 
 export interface SidebarVoiceCallbacks {
   readonly onVoiceJoin: (channelId: number) => void;
-  readonly onVoiceLeave: () => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -154,12 +153,6 @@ export function createSidebarVoiceCallbacks(ws: WsClient): SidebarVoiceCallbacks
       // The server confirms membership with voice_state. Optimistic membership
       // left a phantom connection after CHANNEL_FULL / FORBIDDEN / VOICE_ERROR.
       ws.send({ type: "voice_join", payload: { channel_id: channelId } });
-    },
-    onVoiceLeave: () => {
-      log.info("Leaving voice channel");
-      voiceSessionLeave(false);
-      leaveVoiceChannel();
-      ws.send({ type: "voice_leave", payload: {} });
     },
   };
 }

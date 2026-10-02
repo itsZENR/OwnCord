@@ -290,15 +290,4 @@ describe("createSidebarVoiceCallbacks", () => {
       payload: { channel_id: 42 },
     });
   });
-
-  it("onVoiceLeave sends voice_leave and cleans up", () => {
-    const ws = makeWs();
-    const cbs = createSidebarVoiceCallbacks(ws);
-
-    cbs.onVoiceLeave();
-
-    expect(mockVoiceSessionLeave).toHaveBeenCalledWith(false);
-    expect(mockLeaveVoiceChannel).toHaveBeenCalled();
-    expect(ws.send).toHaveBeenCalledWith({ type: "voice_leave", payload: {} });
-  });
 });
