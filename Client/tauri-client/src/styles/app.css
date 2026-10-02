@@ -100,6 +100,16 @@
 .channel-item .ch-icon { opacity: .6; flex-shrink: 0; width: 20px; text-align: center; display: flex; align-items: center; justify-content: center; }
 .channel-item.active .ch-icon { opacity: 1; }
 .channel-item .ch-name { font-size: 14px; flex: 1; }
+.channel-chat-button {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; flex: 0 0 26px;
+  padding: 0; border: 0; border-radius: var(--radius-sm);
+  background: transparent; color: inherit; cursor: pointer;
+}
+.channel-chat-button:hover { background: var(--bg-active); color: var(--header-primary); }
+.channel-chat-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.channel-item.chat-selected .channel-chat-button,
+.channel-item:not(.voice).active .channel-chat-button { color: var(--accent); }
 .channel-item .unread-badge {
   background: var(--accent); color: white;
   font-size: 10px; font-weight: 700;

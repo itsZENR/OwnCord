@@ -122,15 +122,15 @@ describe("ChannelSidebar", () => {
   let container: HTMLDivElement;
   let sidebar: ReturnType<typeof createChannelSidebar>;
   let onVoiceJoin: ReturnType<typeof vi.fn>;
-  let onVoiceOpen: ReturnType<typeof vi.fn>;
+  let onChannelChatOpen: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     resetStores();
     container = document.createElement("div");
     document.body.appendChild(container);
     onVoiceJoin = vi.fn();
-    onVoiceOpen = vi.fn();
-    sidebar = createChannelSidebar({ onVoiceJoin, onVoiceOpen });
+    onChannelChatOpen = vi.fn();
+    sidebar = createChannelSidebar({ onVoiceJoin, onChannelChatOpen });
   });
 
   afterEach(() => {
@@ -308,7 +308,7 @@ describe("ChannelSidebar", () => {
     voiceItem.click();
 
     expect(channelsStore.getState().activeChannelId).toBe(3);
-    expect(onVoiceOpen).toHaveBeenCalledOnce();
+    expect(onChannelChatOpen).toHaveBeenCalledOnce();
     expect(onVoiceJoin).toHaveBeenCalledWith(3);
   });
 
@@ -336,7 +336,39 @@ describe("ChannelSidebar", () => {
     voiceItem.click();
 
     expect(channelsStore.getState().activeChannelId).toBe(3);
-    expect(onVoiceOpen).toHaveBeenCalledOnce();
+    expect(onChannelChatOpen).toHaveBeenCalledOnce();
+    expect(onVoiceJoin).not.toHaveBeenCalled();
+  });
+
+  it("opens another voice channel's chat without switching the current call", () => {
+    setChannels([
+      ...testChannels,
+      { id: 5, name: "music", type: "voice", category: "Voice Channels", position: 1 },
+    ]);
+    voiceStore.setState((prev) => ({ ...prev, currentChannelId: 3 }));
+    sidebar.mount(container);
+
+    const chatButton = container.querySelector('[data-testid="channel-chat-5"]') as HTMLButtonElement;
+    expect(chatButton.getAttribute("aria-label")).toBe("Read chat: music (without joining)");
+    chatButton.click();
+
+    expect(channelsStore.getState().activeChannelId).toBe(5);
+    expect(voiceStore.getState().currentChannelId).toBe(3);
+    expect(onChannelChatOpen).toHaveBeenCalledOnce();
+    expect(onVoiceJoin).not.toHaveBeenCalled();
+  });
+
+  it("shows a chat button for every channel and opens text chat without joining voice", () => {
+    setChannels(testChannels);
+    sidebar.mount(container);
+
+    for (const channel of testChannels) {
+      expect(container.querySelector(`[data-testid="channel-chat-${channel.id}"]`)).not.toBeNull();
+    }
+    (container.querySelector('[data-testid="channel-chat-2"]') as HTMLButtonElement).click();
+
+    expect(channelsStore.getState().activeChannelId).toBe(2);
+    expect(onChannelChatOpen).toHaveBeenCalledOnce();
     expect(onVoiceJoin).not.toHaveBeenCalled();
   });
 
@@ -452,7 +484,7 @@ describe("ChannelSidebar", () => {
   it("calls onWatchStream when clicking a user row with active stream", () => {
     const onWatchStream = vi.fn();
     sidebar.destroy?.();
-    sidebar = createChannelSidebar({ onVoiceJoin, onVoiceOpen, onWatchStream });
+    sidebar = createChannelSidebar({ onVoiceJoin, onChannelChatOpen, onWatchStream });
 
     setChannels(testChannels);
     updateVoiceState({
@@ -658,7 +690,7 @@ describe("ChannelSidebar", () => {
     setAdminUser();
     sidebar = createChannelSidebar({
       onVoiceJoin,
-      onVoiceOpen,
+      onChannelChatOpen,
       onEditChannel,
       onDeleteChannel,
     });
@@ -694,7 +726,7 @@ describe("ChannelSidebar", () => {
     setAdminUser();
     sidebar = createChannelSidebar({
       onVoiceJoin,
-      onVoiceOpen,
+      onChannelChatOpen,
       onEditChannel,
     });
 
@@ -723,7 +755,7 @@ describe("ChannelSidebar", () => {
     setAdminUser();
     sidebar = createChannelSidebar({
       onVoiceJoin,
-      onVoiceOpen,
+      onChannelChatOpen,
       onDeleteChannel,
     });
 
@@ -757,7 +789,7 @@ describe("ChannelSidebar", () => {
     }));
     sidebar = createChannelSidebar({
       onVoiceJoin,
-      onVoiceOpen,
+      onChannelChatOpen,
       onEditChannel,
     });
 
@@ -784,7 +816,7 @@ describe("ChannelSidebar", () => {
     setAdminUser();
     sidebar = createChannelSidebar({
       onVoiceJoin,
-      onVoiceOpen,
+      onChannelChatOpen,
       onCreateChannel,
     });
 
@@ -802,7 +834,7 @@ describe("ChannelSidebar", () => {
     setAdminUser();
     sidebar = createChannelSidebar({
       onVoiceJoin,
-      onVoiceOpen,
+      onChannelChatOpen,
       onCreateChannel,
     });
 
@@ -821,7 +853,7 @@ describe("ChannelSidebar", () => {
     setAdminUser();
     sidebar = createChannelSidebar({
       onVoiceJoin,
-      onVoiceOpen,
+      onChannelChatOpen,
       onCreateChannel,
     });
 
@@ -850,7 +882,7 @@ describe("ChannelSidebar", () => {
     }));
     sidebar = createChannelSidebar({
       onVoiceJoin,
-      onVoiceOpen,
+      onChannelChatOpen,
       onCreateChannel,
     });
 
@@ -954,7 +986,7 @@ describe("ChannelSidebar", () => {
     setAdminUser();
     sidebar = createChannelSidebar({
       onVoiceJoin,
-      onVoiceOpen,
+      onChannelChatOpen,
       onReorderChannel,
     });
 
@@ -978,7 +1010,7 @@ describe("ChannelSidebar", () => {
     }));
     sidebar = createChannelSidebar({
       onVoiceJoin,
-      onVoiceOpen,
+      onChannelChatOpen,
       onReorderChannel,
     });
 
@@ -995,7 +1027,7 @@ describe("ChannelSidebar", () => {
     setAdminUser();
     sidebar = createChannelSidebar({
       onVoiceJoin,
-      onVoiceOpen,
+      onChannelChatOpen,
       onReorderChannel,
     });
 
@@ -1009,7 +1041,7 @@ describe("ChannelSidebar", () => {
     expect(container.querySelector('[data-testid="channel-sidebar"]')).toBeNull();
 
     // Re-create for afterEach cleanup
-    sidebar = createChannelSidebar({ onVoiceJoin, onVoiceOpen });
+    sidebar = createChannelSidebar({ onVoiceJoin, onChannelChatOpen });
   });
 
   // ── Multiple voice users in same channel ──
@@ -1077,7 +1109,7 @@ describe("ChannelSidebar", () => {
   // T1: Screenshare click → offset tileId
   it("passes screenshare tile offset when clicking screensharing user", () => {
     const onWatchStream = vi.fn();
-    const sidebarWithWatch = createChannelSidebar({ onVoiceJoin, onVoiceOpen, onWatchStream });
+    const sidebarWithWatch = createChannelSidebar({ onVoiceJoin, onChannelChatOpen, onWatchStream });
     setChannels(testChannels);
     voiceStore.setState(() => ({
       currentChannelId: 3,
@@ -1105,7 +1137,7 @@ describe("ChannelSidebar", () => {
   // T2: Camera-only click → raw userId
   it("passes raw userId when clicking camera-only user", () => {
     const onWatchStream = vi.fn();
-    const sidebarWithWatch = createChannelSidebar({ onVoiceJoin, onVoiceOpen, onWatchStream });
+    const sidebarWithWatch = createChannelSidebar({ onVoiceJoin, onChannelChatOpen, onWatchStream });
     setChannels(testChannels);
     voiceStore.setState(() => ({
       currentChannelId: 3,
@@ -1163,7 +1195,7 @@ describe("ChannelSidebar", () => {
   it("uses shared SCREENSHARE_TILE_ID_OFFSET constant", async () => {
     // Verify the constant is imported and used by checking the offset value
     const onWatchStream = vi.fn();
-    const sidebarWithWatch = createChannelSidebar({ onVoiceJoin, onVoiceOpen, onWatchStream });
+    const sidebarWithWatch = createChannelSidebar({ onVoiceJoin, onChannelChatOpen, onWatchStream });
     setChannels(testChannels);
     voiceStore.setState(() => ({
       currentChannelId: 3,

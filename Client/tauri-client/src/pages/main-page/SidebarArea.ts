@@ -48,7 +48,7 @@ export interface SidebarAreaOptions {
   readonly limiters: RateLimiterSet;
   readonly getRoot: () => HTMLDivElement | null;
   readonly getToast: () => ToastContainer | null;
-  readonly onVoiceOpen: () => void;
+  readonly onChannelChatOpen: () => void;
   readonly onWatchStream?: (userId: number) => void;
 }
 
@@ -176,7 +176,7 @@ export function createSidebarArea(opts: SidebarAreaOptions): SidebarAreaResult {
     const sidebarVoice = createSidebarVoiceCallbacks(ws);
     return createChannelSidebar({
       onVoiceJoin: sidebarVoice.onVoiceJoin,
-      onVoiceOpen: opts.onVoiceOpen,
+      onChannelChatOpen: opts.onChannelChatOpen,
       onWatchStream: opts.onWatchStream,
       onCreateChannel: (category) => {
         if (activeModal !== null) return;

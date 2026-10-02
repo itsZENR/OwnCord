@@ -287,7 +287,7 @@ function defaultOpts(): SidebarAreaOptions {
     } as unknown as SidebarAreaOptions["limiters"],
     getRoot: vi.fn().mockReturnValue(document.createElement("div")),
     getToast: vi.fn().mockReturnValue({ show: vi.fn() }),
-    onVoiceOpen: vi.fn(),
+    onChannelChatOpen: vi.fn(),
   };
 }
 
@@ -1342,7 +1342,7 @@ describe("SidebarArea", () => {
       expect(createChannelSidebar).toHaveBeenCalled();
       const callArgs = (createChannelSidebar as MockedFn).mock.calls[0]![0];
       expect(typeof callArgs.onVoiceJoin).toBe("function");
-      expect(callArgs.onVoiceOpen).toBeDefined();
+      expect(callArgs.onChannelChatOpen).toBeDefined();
       expect(typeof callArgs.onCreateChannel).toBe("function");
       expect(typeof callArgs.onEditChannel).toBe("function");
       expect(typeof callArgs.onDeleteChannel).toBe("function");

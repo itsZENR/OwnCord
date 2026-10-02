@@ -1,7 +1,7 @@
 /**
  * ChannelSidebar component — channel list sidebar with categories,
  * unread indicators, and collapse/expand behavior.
- * Voice channels show connected users and join/leave on click.
+ * Voice channels show connected users and join on click.
  */
 
 import {
@@ -20,7 +20,6 @@ import {
   channelsStore,
   getChannelsByCategory,
   setActiveChannel,
-  clearUnread,
   updateChannelPosition,
 } from "@stores/channels.store";
 import type { Channel } from "@stores/channels.store";
@@ -132,8 +131,8 @@ export interface ChannelReorderData {
 
 export interface ChannelSidebarOptions {
   readonly onVoiceJoin: (channelId: number) => void;
-  /** Opens the selected voice channel's conversation in the main area. */
-  readonly onVoiceOpen: () => void;
+  /** Opens the selected channel's conversation in the main area. */
+  readonly onChannelChatOpen: () => void;
   /** Called when the user clicks the "+" on a category header. */
   readonly onCreateChannel?: (category: string) => void;
   /** Called when the user right-clicks a channel and selects Edit. */
@@ -166,10 +165,16 @@ function pickAvatarColor(username: string): string {
   return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length] ?? "#5865f2";
 }
 
+function openChannelChat(channelId: number, onChannelChatOpen: () => void): void {
+  setActiveChannel(channelId);
+  onChannelChatOpen();
+}
+
 function renderTextChannelItem(
   channel: Channel,
   isActive: boolean,
   signal: AbortSignal,
+  onChannelChatOpen: () => void,
 ): HTMLDivElement {
   const classes = [
     "channel-item",
@@ -199,8 +204,7 @@ function renderTextChannelItem(
   item.addEventListener(
     "click",
     () => {
-      setActiveChannel(channel.id);
-      clearUnread(channel.id);
+      openChannelChat(channel.id, onChannelChatOpen);
     },
     { signal },
   );
@@ -210,9 +214,10 @@ function renderTextChannelItem(
 
 function renderVoiceChannelItem(
   channel: Channel,
+  isActive: boolean,
   signal: AbortSignal,
   onVoiceJoin: (channelId: number) => void,
-  onVoiceOpen: () => void,
+  onChannelChatOpen: () => void,
   onWatchStream?: (userId: number) => void,
 ): HTMLDivElement {
   const voiceState = voiceStore.getState();
@@ -220,7 +225,7 @@ function renderVoiceChannelItem(
 
   const wrapper = createElement("div", {});
 
-  const classes = ["channel-item", "voice", isJoined ? "active" : ""]
+  const classes = ["channel-item", "voice", isJoined ? "active" : "", isActive ? "chat-selected" : ""]
     .filter(Boolean)
     .join(" ");
 
@@ -236,8 +241,7 @@ function renderVoiceChannelItem(
   item.addEventListener(
     "click",
     () => {
-      setActiveChannel(channel.id);
-      onVoiceOpen();
+      openChannelChat(channel.id, onChannelChatOpen);
       if (voiceStore.getState().currentChannelId !== channel.id) {
         onVoiceJoin(channel.id);
       }
@@ -623,12 +627,42 @@ function attachDragHandlers(
   );
 }
 
+function attachChannelChatButton(
+  el: HTMLDivElement,
+  channel: Channel,
+  signal: AbortSignal,
+  onChannelChatOpen: () => void,
+): void {
+  const item = channel.type === "voice"
+    ? el.querySelector<HTMLElement>(".channel-item")
+    : el;
+  if (item === null) return;
+
+  const label = channel.type === "voice"
+    ? t(`Read chat: ${channel.name} (without joining)`, `Читать чат: ${channel.name} (без входа)`)
+    : t(`Open chat: ${channel.name}`, `Открыть чат: ${channel.name}`);
+  const button = createElement("button", {
+    type: "button",
+    class: "channel-chat-button",
+    title: label,
+    "aria-label": label,
+    "data-testid": `channel-chat-${channel.id}`,
+  });
+  button.appendChild(createIcon("message-circle", 16));
+  button.addEventListener("mousedown", (event) => event.stopPropagation(), { signal });
+  button.addEventListener("click", (event) => {
+    event.stopPropagation();
+    openChannelChat(channel.id, onChannelChatOpen);
+  }, { signal });
+  item.appendChild(button);
+}
+
 function renderChannelItem(
   channel: Channel,
   isActive: boolean,
   signal: AbortSignal,
   onVoiceJoin: (channelId: number) => void,
-  onVoiceOpen: () => void,
+  onChannelChatOpen: () => void,
   onEditChannel?: (channel: Channel) => void,
   onDeleteChannel?: (channel: Channel) => void,
   containerEl?: HTMLElement,
@@ -638,10 +672,11 @@ function renderChannelItem(
 ): HTMLDivElement {
   let el: HTMLDivElement;
   if (channel.type === "voice") {
-    el = renderVoiceChannelItem(channel, signal, onVoiceJoin, onVoiceOpen, onWatchStream);
+    el = renderVoiceChannelItem(channel, isActive, signal, onVoiceJoin, onChannelChatOpen, onWatchStream);
   } else {
-    el = renderTextChannelItem(channel, isActive, signal);
+    el = renderTextChannelItem(channel, isActive, signal, onChannelChatOpen);
   }
+  attachChannelChatButton(el, channel, signal, onChannelChatOpen);
   attachChannelContextMenu(el, channel, signal, onEditChannel, onDeleteChannel);
   if (containerEl !== undefined && channels !== undefined) {
     attachDragHandlers(el, channel, containerEl, channels, signal, onReorderChannel);
@@ -655,7 +690,7 @@ function renderCategoryGroup(
   activeChannelId: number | null,
   signal: AbortSignal,
   onVoiceJoin: (channelId: number) => void,
-  onVoiceOpen: () => void,
+  onChannelChatOpen: () => void,
   onCreateChannel?: (category: string) => void,
   onEditChannel?: (channel: Channel) => void,
   onDeleteChannel?: (channel: Channel) => void,
@@ -714,7 +749,7 @@ function renderCategoryGroup(
       const channelsContainer = createElement("div", { class: "category-channels-container" });
       for (const ch of channels) {
         channelsContainer.appendChild(
-          renderChannelItem(ch, ch.id === activeChannelId, signal, onVoiceJoin, onVoiceOpen, onEditChannel, onDeleteChannel, channelsContainer, channels, onReorderChannel, onWatchStream),
+          renderChannelItem(ch, ch.id === activeChannelId, signal, onVoiceJoin, onChannelChatOpen, onEditChannel, onDeleteChannel, channelsContainer, channels, onReorderChannel, onWatchStream),
         );
       }
       group.appendChild(channelsContainer);
@@ -724,7 +759,7 @@ function renderCategoryGroup(
     const channelsContainer = createElement("div", { class: "category-channels-container" });
     for (const ch of channels) {
       channelsContainer.appendChild(
-        renderChannelItem(ch, ch.id === activeChannelId, signal, onVoiceJoin, onVoiceOpen, onEditChannel, onDeleteChannel, channelsContainer, channels, onReorderChannel, onWatchStream),
+        renderChannelItem(ch, ch.id === activeChannelId, signal, onVoiceJoin, onChannelChatOpen, onEditChannel, onDeleteChannel, channelsContainer, channels, onReorderChannel, onWatchStream),
       );
     }
     group.appendChild(channelsContainer);
@@ -734,7 +769,7 @@ function renderCategoryGroup(
 }
 
 export function createChannelSidebar(options: ChannelSidebarOptions): MountableComponent {
-  const { onVoiceJoin, onVoiceOpen, onCreateChannel, onEditChannel, onDeleteChannel, onReorderChannel, onWatchStream } = options;
+  const { onVoiceJoin, onChannelChatOpen, onCreateChannel, onEditChannel, onDeleteChannel, onReorderChannel, onWatchStream } = options;
   const ac = new AbortController();
   let root: HTMLDivElement | null = null;
   let channelList: HTMLDivElement | null = null;
@@ -763,7 +798,7 @@ export function createChannelSidebar(options: ChannelSidebarOptions): MountableC
 
     for (const [category, channels] of grouped) {
       channelList.appendChild(
-        renderCategoryGroup(category, channels, state.activeChannelId, ac.signal, onVoiceJoin, onVoiceOpen, onCreateChannel, onEditChannel, onDeleteChannel, onReorderChannel, onWatchStream),
+        renderCategoryGroup(category, channels, state.activeChannelId, ac.signal, onVoiceJoin, onChannelChatOpen, onCreateChannel, onEditChannel, onDeleteChannel, onReorderChannel, onWatchStream),
       );
     }
   }

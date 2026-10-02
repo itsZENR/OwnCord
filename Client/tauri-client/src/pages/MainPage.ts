@@ -181,7 +181,7 @@ export function createMainPage(options: MainPageOptions): MountableComponent {
       limiters,
       getRoot: () => root,
       getToast: () => toast,
-      onVoiceOpen: () => {
+      onChannelChatOpen: () => {
         openConversation();
         videoModeCtrl?.showChat();
       },
