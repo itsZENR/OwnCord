@@ -216,7 +216,9 @@ export class AudioPipeline {
     this.stopVadPolling();
     if (this.audioPipelineCtx === null || this.audioPipelineAnalyser === null) return;
 
-    const sensitivity = loadPref<number>("voiceSensitivity", 50);
+    // Default to no voice gate (zero activation threshold). Existing preferences
+    // continue to use their stored sensitivity without migration.
+    const sensitivity = loadPref<number>("voiceSensitivity", 100);
     if (sensitivity >= 100) return;
 
     const threshold = ((100 - sensitivity) / 100) * 0.10;

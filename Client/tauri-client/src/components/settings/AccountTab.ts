@@ -11,6 +11,7 @@ import { setAvatarVisual } from "@lib/avatar";
 import { t } from "@lib/i18n";
 import type { SettingsOverlayOptions } from "../SettingsOverlay";
 import { loadPref, savePref } from "./helpers";
+import { chooseAvatarCrop } from "./AvatarCropDialog";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -627,7 +628,9 @@ export function buildAccountTab(
       removeAvatar.disabled = true;
       setText(avatarError, "");
       try {
-        const updated = await options.onUpdateAvatar(file);
+        const crop = file ? await chooseAvatarCrop(file, signal) : undefined;
+        if (file && !crop) return;
+        const updated = await options.onUpdateAvatar(file, crop ?? undefined);
         setAvatarVisual(avatarLarge, authStore.getState().user?.username ?? username, updated);
         removeAvatar.hidden = !updated;
       } catch (error) {

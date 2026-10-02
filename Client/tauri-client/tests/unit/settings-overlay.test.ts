@@ -36,6 +36,10 @@ vi.mock("@lib/livekitSession", () => ({
   getSessionDebugInfo: vi.fn().mockReturnValue({}),
 }));
 
+vi.mock("@components/settings/AvatarCropDialog", () => ({
+  chooseAvatarCrop: vi.fn(async () => ({ centerX: 0.5, centerY: 0.5, zoom: 1 })),
+}));
+
 vi.mock("@stores/auth.store", () => ({
   authStore: {
     getState: () => ({
@@ -480,11 +484,11 @@ describe("SettingsOverlay", () => {
     const file = new File(["image"], "avatar.png", { type: "image/png" });
     Object.defineProperty(input, "files", { configurable: true, value: [file] });
     input.dispatchEvent(new Event("change"));
-    await vi.waitFor(() => expect(onUpdateAvatar).toHaveBeenCalledWith(file));
+    await vi.waitFor(() => expect(onUpdateAvatar).toHaveBeenCalledWith(file, { centerX: 0.5, centerY: 0.5, zoom: 1 }));
     await vi.waitFor(() => expect(remove.hidden).toBe(false));
 
     remove.click();
-    await vi.waitFor(() => expect(onUpdateAvatar).toHaveBeenCalledWith(null));
+    await vi.waitFor(() => expect(onUpdateAvatar).toHaveBeenCalledWith(null, undefined));
     await vi.waitFor(() => expect(remove.hidden).toBe(true));
     overlay.destroy?.();
   });

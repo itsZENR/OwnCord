@@ -86,6 +86,52 @@ test.describe("Settings — Account Tab", () => {
     await expect(avatar).toBeVisible();
   });
 
+  test("shows the circular avatar crop and allows moving the photo before upload", async ({ page }) => {
+    await page.evaluate(async () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = 600;
+      canvas.height = 300;
+      const context = canvas.getContext("2d")!;
+      context.fillStyle = "#e35c5c";
+      context.fillRect(0, 0, 300, 300);
+      context.fillStyle = "#5c8ce3";
+      context.fillRect(300, 0, 300, 300);
+      const blob = await new Promise<Blob>((resolve) => canvas.toBlob((result) => resolve(result!), "image/png"));
+      const file = new File([blob], "landscape.png", { type: "image/png" });
+      const transfer = new DataTransfer();
+      transfer.items.add(file);
+      const input = document.querySelector<HTMLInputElement>("[data-testid='profile-avatar-input']")!;
+      input.files = transfer.files;
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+
+    const dialog = page.locator("[data-testid='avatar-crop-dialog']");
+    await expect(dialog).toBeVisible();
+    const viewport = dialog.locator("[data-testid='avatar-crop-viewport']");
+    const guide = viewport.locator(".avatar-crop-guide");
+    await expect(guide).toHaveCSS("border-radius", "50%");
+
+    const slider = dialog.locator("[data-testid='avatar-crop-zoom']");
+    await slider.evaluate((input: HTMLInputElement) => {
+      input.value = "2";
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await expect(dialog.locator(".avatar-crop-zoom-value")).toHaveText("200%");
+    const image = viewport.locator(".avatar-crop-image");
+    const before = await image.evaluate((node) => (node as HTMLElement).style.left);
+    const bounds = await viewport.boundingBox();
+    expect(bounds).not.toBeNull();
+    await page.mouse.move(bounds!.x + 140, bounds!.y + 140);
+    await page.mouse.down();
+    await page.mouse.move(bounds!.x + 80, bounds!.y + 140);
+    await page.mouse.up();
+    const after = await image.evaluate((node) => (node as HTMLElement).style.left);
+    expect(after).not.toBe(before);
+
+    await dialog.locator("[data-testid='avatar-crop-cancel']").click();
+    await expect(dialog).toHaveCount(0);
+  });
+
   test("has password change fields", async ({ page }) => {
     const passwordInputs = page.locator(".settings-content input[type='password']");
     const count = await passwordInputs.count();

@@ -543,6 +543,20 @@ describe("VoiceAudioTab UI structure", () => {
     ac.abort();
   });
 
+  it("defaults to zero activation threshold without overwriting a saved preference", () => {
+    stubNavigator();
+    const ac = new AbortController();
+    const tab = createVoiceAudioTab(ac.signal);
+    const el = tab.build();
+    document.body.appendChild(el);
+
+    const threshold = el.querySelector(".mic-meter-threshold") as HTMLElement;
+    expect(threshold.style.left).toBe("0%");
+    expect(el.querySelector("[data-testid='mic-threshold-value']")?.textContent).toContain("0%");
+    expect(localStorage.getItem("owncord:settings:voiceSensitivity")).toBeNull();
+    ac.abort();
+  });
+
   it("clicking the meter bar calls setVoiceSensitivity", () => {
     stubNavigator();
     const ac = new AbortController();

@@ -17,6 +17,7 @@ import { getActiveThemeName, restoreTheme } from "@lib/themes";
 import { syncOsMotionListener } from "@lib/os-motion";
 import { buildAccountTab } from "./settings/AccountTab";
 import { setAvatarVisual } from "@lib/avatar";
+import type { AvatarCrop } from "@lib/avatarUpload";
 import { buildAppearanceTab } from "./settings/AppearanceTab";
 import { buildNotificationsTab } from "./settings/NotificationsTab";
 import { buildTextImagesTab } from "./settings/TextImagesTab";
@@ -34,7 +35,7 @@ export interface SettingsOverlayOptions {
   onClose(): void;
   onChangePassword(oldPassword: string, newPassword: string): Promise<void>;
   onUpdateProfile(username: string): Promise<void>;
-  onUpdateAvatar?(file: File | null): Promise<string | null>;
+  onUpdateAvatar?(file: File | null, crop?: AvatarCrop): Promise<string | null>;
   onLogout(): void;
   onDeleteAccount(password: string): Promise<void>;
   onStatusChange(status: UserStatus): void;

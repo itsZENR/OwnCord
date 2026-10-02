@@ -5,7 +5,7 @@ export function getLanguage(): Language {
     const saved = localStorage.getItem("owncord:language");
     if (saved === "ru" || saved === "en") return saved;
   } catch { /* Storage can be disabled by the browser. */ }
-  return navigator.language.toLowerCase().startsWith("ru") ? "ru" : "en";
+  return navigator.language?.toLowerCase().startsWith("ru") ? "ru" : "en";
 }
 
 export function t(en: string, ru: string): string {

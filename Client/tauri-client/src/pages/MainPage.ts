@@ -268,8 +268,8 @@ export function createMainPage(options: MainPageOptions): MountableComponent {
           throw err;
         }
       },
-      onUpdateAvatar: async (file) => {
-        const avatar = file ? (await api.uploadFile(await prepareAvatar(file))).url : "";
+        onUpdateAvatar: async (file, crop) => {
+          const avatar = file ? (await api.uploadFile(await prepareAvatar(file, crop))).url : "";
         const updated = await api.updateProfile({ avatar });
         const nextAvatar = updated.avatar || null;
         updateUser({ avatar: nextAvatar });

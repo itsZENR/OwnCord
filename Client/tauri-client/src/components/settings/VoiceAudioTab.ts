@@ -5,6 +5,7 @@
 import { createElement, appendChildren, setText } from "@lib/dom";
 import { loadPref, savePref, createToggle } from "./helpers";
 import { switchInputDevice, switchOutputDevice, setVoiceSensitivity, setInputVolume, setOutputVolume, reapplyAudioProcessing } from "@lib/livekitSession";
+import { t } from "@lib/i18n";
 
 export interface VoiceAudioTabHandle {
   build(): HTMLDivElement;
@@ -109,6 +110,8 @@ function buildVoiceAudioTabInner(
   // ── Mic level meter with draggable sensitivity threshold ────────
   const sensitivityHeader = createElement("h3", {}, "Input Sensitivity");
   section.appendChild(sensitivityHeader);
+  const thresholdValue = createElement("div", { class: "mic-threshold-value", "data-testid": "mic-threshold-value" });
+  section.appendChild(thresholdValue);
 
   // Real-time mic level bar with embedded draggable threshold handle
   const meterWrap = createElement("div", { class: "mic-meter-wrap" });
@@ -120,13 +123,15 @@ function buildVoiceAudioTabInner(
   meterWrap.appendChild(meterBar);
   section.appendChild(meterWrap);
 
-  let currentSensitivity = loadPref<number>("voiceSensitivity", 50);
+  // An unset preference means zero activation threshold; saved values are untouched.
+  let currentSensitivity = loadPref<number>("voiceSensitivity", 100);
 
   function updateThresholdIndicator(sensitivity: number): void {
     // Invert: sensitivity 100 (no gating) → handle at LEFT (0%),
     //         sensitivity 0 (max gating) → handle at RIGHT (100%).
     // This matches Discord: drag LEFT = easier to pass, RIGHT = harder.
     meterThreshold.style.left = `${100 - sensitivity}%`;
+    setText(thresholdValue, t(`Activation threshold: ${100 - sensitivity}%`, `Порог включения: ${100 - sensitivity}%`));
   }
   updateThresholdIndicator(currentSensitivity);
 
