@@ -292,10 +292,10 @@ describe("API Client", () => {
   });
 
   describe("user endpoints", () => {
-    it("getMe calls GET /users/me", async () => {
+    it("getMe checks the server's actual GET /auth/me route", async () => {
       mockFetch.mockResolvedValue(jsonResponse({ id: 1, username: "me" }));
       const result = await api.getMe();
-      expect(fetchCallUrl()).toBe("https://localhost:8443/api/v1/users/me");
+      expect(fetchCallUrl()).toBe("https://localhost:8443/api/v1/auth/me");
       expect(fetchCallOpts().method).toBe("GET");
       expect(result).toEqual({ id: 1, username: "me" });
     });

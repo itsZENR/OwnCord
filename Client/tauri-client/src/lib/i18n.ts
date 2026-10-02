@@ -65,6 +65,7 @@ export function describeError(error: unknown, code?: string, status?: number): s
   if (code && codes[code]) return codes[code]!;
   if (status === 401) return codes.UNAUTHORIZED!;
   if (status === 403) return codes.FORBIDDEN!;
+  if (status === 404 && code === "UNKNOWN") return "Сервер не поддерживает этот запрос. Обновите приложение; если ошибка останется, сообщите администратору.";
   if (status === 429) return codes.RATE_LIMITED!;
   if (status && status >= 500) return codes.INTERNAL!;
   const reference = code && /^[A-Z0-9_]{1,48}$/.test(code) ? ` Код: ${code}.` : "";

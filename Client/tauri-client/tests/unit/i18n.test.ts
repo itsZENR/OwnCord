@@ -22,6 +22,11 @@ describe("user-facing errors", () => {
     expect(result).not.toContain("/private/database");
     expect(result).toContain("UNEXPECTED_ERROR");
   });
+  it("explains a missing server route instead of showing UNKNOWN", () => {
+    const error = new ApiClientError(404, "UNKNOWN", "Not Found");
+    expect(error.message).toContain("Сервер не поддерживает этот запрос");
+    expect(error.message).not.toContain("UNKNOWN");
+  });
   it("honors an explicit English preference", () => {
     localStorage.setItem("owncord:language", "en");
     expect(getLanguage()).toBe("en");

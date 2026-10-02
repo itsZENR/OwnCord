@@ -111,7 +111,7 @@ export function createApiClient(
     if (res.status === 401) {
       const err = await parseError(res);
       // Password confirmation failures must not log the user out.
-      if (config.token && !path.startsWith("/auth/") && err.error === "UNAUTHORIZED") onUnauthorized?.();
+      if (config.token && (!path.startsWith("/auth/") || path === "/auth/me") && err.error === "UNAUTHORIZED") onUnauthorized?.();
       throw new ApiClientError(401, err.error, err.message);
     }
 
@@ -254,7 +254,7 @@ export function createApiClient(
     // ── Users ─────────────────────────────────────────────
 
     getMe(signal?: AbortSignal): Promise<MemberResponse> {
-      return request<MemberResponse>("GET", "/users/me", undefined, signal);
+      return request<MemberResponse>("GET", "/auth/me", undefined, signal);
     },
 
     updateProfile(

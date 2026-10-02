@@ -72,6 +72,7 @@ test("Russian session timers, cumulative statistics, call controls and actionabl
 
 test("browser restores a saved session without a saved password and survives reload", async ({ page }) => {
   let loginRequests = 0;
+  let sessionChecks = 0;
   await page.addInitScript(() => {
     if (localStorage.getItem("owncord:settings")) return;
     localStorage.setItem("owncord:language", "en");
@@ -83,7 +84,9 @@ test("browser restores a saved session without a saved password and survives rel
   await page.route("https://chat.test/**", (route) => {
     const path = new URL(route.request().url()).pathname;
     if (path.endsWith("/auth/login")) loginRequests++;
-    const body = path.endsWith("/users/me") ? MOCK_AUTH_OK.payload.user
+    if (path.endsWith("/auth/me")) sessionChecks++;
+    if (path.endsWith("/users/me")) return route.fulfill({ status: 404, body: "404 page not found" });
+    const body = path.endsWith("/auth/me") ? MOCK_AUTH_OK.payload.user
       : path.endsWith("/activity") ? { members: [] }
       : path.endsWith("/messages") ? { messages: [], has_more: false }
       : { status: "ok", version: "1.1.3", online_users: 2 };
@@ -103,17 +106,21 @@ test("browser restores a saved session without a saved password and survives rel
   await page.reload();
   await expect(page.getByTestId("app-layout")).toBeVisible({ timeout: 15_000 });
   expect(loginRequests).toBe(0);
+  expect(sessionChecks).toBe(2);
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem("owncord:cred:chat.test")!).token)).toBe("saved-token");
 });
 
 test("remembering a fresh browser login enables automatic sign-in after reload", async ({ page }) => {
   let loginRequests = 0;
+  let sessionChecks = 0;
   await page.addInitScript(() => localStorage.setItem("owncord:language", "en"));
   await page.route("https://chat.test/**", (route) => {
     const path = new URL(route.request().url()).pathname;
     if (path.endsWith("/auth/login")) loginRequests++;
+    if (path.endsWith("/auth/me")) sessionChecks++;
+    if (path.endsWith("/users/me")) return route.fulfill({ status: 404, body: "404 page not found" });
     const body = path.endsWith("/auth/login") ? MOCK_LOGIN_RESPONSE
-      : path.endsWith("/users/me") ? MOCK_AUTH_OK.payload.user
+      : path.endsWith("/auth/me") ? MOCK_AUTH_OK.payload.user
       : path.endsWith("/activity") ? { members: [] }
       : path.endsWith("/messages") ? { messages: [], has_more: false }
       : { status: "ok", version: "1.2.0", online_users: 2 };
@@ -140,4 +147,5 @@ test("remembering a fresh browser login enables automatic sign-in after reload",
   await page.reload();
   await expect(page.getByTestId("app-layout")).toBeVisible({ timeout: 15_000 });
   expect(loginRequests).toBe(1);
+  expect(sessionChecks).toBe(1);
 });
