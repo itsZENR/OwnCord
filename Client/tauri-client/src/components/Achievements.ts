@@ -2,6 +2,7 @@ import { createElement, appendChildren } from "@lib/dom";
 import { activityStore, formatVoiceTime } from "@stores/activity.store";
 import { authStore } from "@stores/auth.store";
 import { membersStore } from "@stores/members.store";
+import { channelsStore } from "@stores/channels.store";
 import { t } from "@lib/i18n";
 
 /**
@@ -10,6 +11,7 @@ import { t } from "@lib/i18n";
  * change; the UI intentionally contains no threshold-based achievements.
  */
 export function createAchievements(onRetry: () => void): { element: HTMLElement; destroy(): void } {
+  const expandedMembers = new Set<number>();
   const element = createElement("section", {
     class: "achievements-page statistics-page",
     "aria-label": t("Server statistics", "Статистика сервера"),
@@ -17,6 +19,11 @@ export function createAchievements(onRetry: () => void): { element: HTMLElement;
   });
 
   function render(): void {
+    for (const details of element.querySelectorAll<HTMLDetailsElement>("details[data-member-id]")) {
+      const userId = Number(details.dataset.memberId);
+      if (details.open) expandedMembers.add(userId);
+      else expandedMembers.delete(userId);
+    }
     element.replaceChildren();
     const state = activityStore.getState();
     const currentUserId = authStore.getState().user?.id ?? 0;
@@ -73,13 +80,30 @@ export function createAchievements(onRetry: () => void): { element: HTMLElement;
         role: "listitem",
       });
       const avatar = createElement("span", { class: "activity-board-avatar", "aria-hidden": "true" }, member.username.charAt(0).toUpperCase() || "?");
-      const info = createElement("span", { class: "activity-board-member" });
+      const info = createElement("div", { class: "activity-board-member" });
       appendChildren(info,
         createElement("strong", {}, member.username),
         createElement("small", {}, activity
           ? `${activity.sessions} ${t("sessions", "подключений")}`
           : t("No voice sessions yet", "Пока без голосовых подключений")),
       );
+      const channels = Object.entries(activity?.channel_seconds ?? {}).sort((a, b) => b[1] - a[1]);
+      if (channels.length) {
+        const details = createElement("details", { class: "activity-channel-details", "data-member-id": String(member.id) });
+        details.open = expandedMembers.has(member.id);
+        details.appendChild(createElement("summary", {}, t("Total time by channel", "Накопленное время по каналам")));
+        const breakdown = createElement("dl", { class: "activity-channel-times" });
+        for (const [channelId, seconds] of channels) {
+          const name = channelsStore.getState().channels.get(Number(channelId))?.name
+            ?? `${t("Channel", "Канал")} #${channelId}`;
+          appendChildren(breakdown,
+            createElement("dt", {}, name),
+            createElement("dd", {}, formatVoiceTime(seconds)),
+          );
+        }
+        details.appendChild(breakdown);
+        info.appendChild(details);
+      }
       appendChildren(row,
         createElement("span", { class: "activity-rank" }, String(index + 1)),
         avatar,
@@ -98,12 +122,14 @@ export function createAchievements(onRetry: () => void): { element: HTMLElement;
 
   const unsubActivity = activityStore.subscribe(render);
   const unsubMembers = membersStore.subscribeSelector((s) => s.members, render);
+  const unsubChannels = channelsStore.subscribeSelector((s) => s.channels, render);
   render();
   return {
     element,
     destroy() {
       unsubActivity();
       unsubMembers();
+      unsubChannels();
       element.remove();
     },
   };

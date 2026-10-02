@@ -69,6 +69,7 @@ func openCoverageDB(t *testing.T) *db.DB {
 	if err := db.MigrateFS(database, migrFS); err != nil {
 		t.Fatalf("MigrateFS: %v", err)
 	}
+	applyVoiceSessionMigration(t, database)
 	return database
 }
 
@@ -504,17 +505,18 @@ func TestBuildReady_VoiceChannelWithParticipants(t *testing.T) {
 
 	var env struct {
 		Payload struct {
-			VoiceStates []struct {
-				ChannelID float64 `json:"channel_id"`
-				UserID    float64 `json:"user_id"`
-			} `json:"voice_states"`
+			VoiceStates []db.VoiceState `json:"voice_states"`
 		} `json:"payload"`
 	}
 	if err := json.Unmarshal(msg, &env); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
 	if len(env.Payload.VoiceStates) != 1 {
-		t.Errorf("voice_states count = %d, want 1", len(env.Payload.VoiceStates))
+		t.Fatalf("voice_states count = %d, want 1", len(env.Payload.VoiceStates))
+	}
+	vs := env.Payload.VoiceStates[0]
+	if vs.JoinedAt == 0 || vs.ChannelStartedAt != vs.JoinedAt || vs.ServerTime < vs.JoinedAt {
+		t.Fatalf("ready missing session timestamps: %+v", vs)
 	}
 }
 

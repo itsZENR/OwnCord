@@ -9,6 +9,8 @@ import { createElement, appendChildren, setText } from "@lib/dom";
 import { createIcon, createSignalIcon } from "@lib/icons";
 import { dmStore } from "@stores/dm.store";
 import { t } from "@lib/i18n";
+import { authStore } from "@stores/auth.store";
+import { sessionDuration } from "@lib/voiceSessionTime";
 import type { IconName } from "@lib/icons";
 import type { MountableComponent } from "@lib/safe-render";
 import { voiceStore } from "@stores/voice.store";
@@ -152,8 +154,13 @@ export function createVoiceWidget(options: VoiceWidgetOptions): MountableCompone
   }
 
   function updateElapsedTimer(): void {
-    const joinedAt = voiceStore.getState().joinedAt;
-    if (timerEl === null || joinedAt === null) return;
+    const voice = voiceStore.getState();
+    const me = voice.currentChannelId !== null
+      ? voice.voiceUsers.get(voice.currentChannelId)?.get(authStore.getState().user?.id ?? 0) : undefined;
+    if (timerEl === null) return;
+    if (me?.joinedAt) { setText(timerEl, sessionDuration(me.joinedAt)); return; }
+    const joinedAt = voice.joinedAt;
+    if (joinedAt === null) return;
     setText(timerEl, formatElapsed(Date.now() - joinedAt));
   }
 

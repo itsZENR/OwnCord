@@ -15,6 +15,9 @@ import { membersStore } from "@stores/members.store";
 import { authStore } from "@stores/auth.store";
 
 export interface VoiceUser {
+  /** Server Unix timestamps in seconds; absent on older servers. */
+  readonly joinedAt?: number;
+  readonly channelStartedAt?: number;
   readonly userId: number;
   readonly username: string;
   readonly muted: boolean;
@@ -34,6 +37,8 @@ export interface VoiceConfig {
 }
 
 export interface VoiceState {
+  /** Server time minus this device's clock, in milliseconds. */
+  readonly serverTimeOffsetMs?: number;
   readonly currentChannelId: number | null;
   readonly voiceUsers: ReadonlyMap<number, ReadonlyMap<number, VoiceUser>>; // channelId -> userId -> VoiceUser
   readonly voiceConfigs: ReadonlyMap<number, VoiceConfig>; // channelId -> VoiceConfig
@@ -88,6 +93,8 @@ export function setVoiceStates(states: readonly ReadyVoiceState[]): void {
     }
     const member = membersStore.getState().members.get(vs.user_id);
     userMap.set(vs.user_id, {
+      joinedAt: vs.joined_at,
+      channelStartedAt: vs.channel_started_at,
       userId: vs.user_id,
       username: member?.username ?? "",
       muted: vs.muted,
@@ -113,6 +120,7 @@ export function setVoiceStates(states: readonly ReadyVoiceState[]): void {
   voiceStore.setState((prev) => ({
     ...prev,
     voiceUsers: channelMap,
+    serverTimeOffsetMs: serverOffset(states.find((vs) => vs.server_time)?.server_time, prev.serverTimeOffsetMs),
     // If user is in a voice channel per ready payload, use that channel.
     // Otherwise preserve prev — user may be mid-join and server hasn't
     // registered them yet. Stale IDs are cleared by leaveVoiceChannel()
@@ -129,6 +137,8 @@ export function updateVoiceState(payload: VoiceStatePayload): void {
     const nextUsers = new Map(existingChannel ?? []);
 
     nextUsers.set(payload.user_id, {
+      joinedAt: payload.joined_at ?? existingChannel?.get(payload.user_id)?.joinedAt,
+      channelStartedAt: payload.channel_started_at ?? existingChannel?.get(payload.user_id)?.channelStartedAt,
       userId: payload.user_id,
       username: payload.username,
       muted: payload.muted,
@@ -139,8 +149,13 @@ export function updateVoiceState(payload: VoiceStatePayload): void {
     });
 
     nextChannels.set(payload.channel_id, nextUsers);
-    return { ...prev, voiceUsers: nextChannels };
+    return { ...prev, voiceUsers: nextChannels,
+      serverTimeOffsetMs: serverOffset(payload.server_time, prev.serverTimeOffsetMs) };
   });
+}
+
+function serverOffset(serverTime: number | undefined, previous: number | undefined): number | undefined {
+  return serverTime && Number.isFinite(serverTime) ? serverTime * 1000 - Date.now() : previous;
 }
 
 /** Remove a user from a voice channel. */

@@ -43,15 +43,15 @@ type memberJoinPayload struct {
 }
 
 type chatMessagePayload struct {
-	ID          int64              `json:"id"`
-	ChannelID   int64              `json:"channel_id"`
-	User        memberUserPayload  `json:"user"`
-	Content     string             `json:"content"`
-	ReplyTo     *int64             `json:"reply_to"`
-	Timestamp   string             `json:"timestamp"`
-	Attachments []map[string]any   `json:"attachments"`
-	Reactions   []any              `json:"reactions"`
-	Pinned      bool               `json:"pinned"`
+	ID          int64             `json:"id"`
+	ChannelID   int64             `json:"channel_id"`
+	User        memberUserPayload `json:"user"`
+	Content     string            `json:"content"`
+	ReplyTo     *int64            `json:"reply_to"`
+	Timestamp   string            `json:"timestamp"`
+	Attachments []map[string]any  `json:"attachments"`
+	Reactions   []any             `json:"reactions"`
+	Pinned      bool              `json:"pinned"`
 }
 
 type memberUpdatePayload struct {
@@ -95,14 +95,17 @@ type typingPayload struct {
 }
 
 type voiceStatePayload struct {
-	ChannelID   int64  `json:"channel_id"`
-	UserID      int64  `json:"user_id"`
-	Username    string `json:"username"`
-	Muted       bool   `json:"muted"`
-	Deafened    bool   `json:"deafened"`
-	Speaking    bool   `json:"speaking"`
-	Camera      bool   `json:"camera"`
-	Screenshare bool   `json:"screenshare"`
+	JoinedAt         int64  `json:"joined_at"`
+	ChannelStartedAt int64  `json:"channel_started_at"`
+	ServerTime       int64  `json:"server_time"`
+	ChannelID        int64  `json:"channel_id"`
+	UserID           int64  `json:"user_id"`
+	Username         string `json:"username"`
+	Muted            bool   `json:"muted"`
+	Deafened         bool   `json:"deafened"`
+	Speaking         bool   `json:"speaking"`
+	Camera           bool   `json:"camera"`
+	Screenshare      bool   `json:"screenshare"`
 }
 
 type voiceConfigPayload struct {
@@ -147,7 +150,7 @@ type serverRestartPayload struct {
 
 // dmChannelOpenPayload is sent when a DM is opened/reopened for a user.
 type dmChannelOpenPayload struct {
-	ChannelID int64     `json:"channel_id"`
+	ChannelID int64         `json:"channel_id"`
 	Recipient dmUserPayload `json:"recipient"`
 }
 
@@ -339,14 +342,17 @@ func buildVoiceState(state db.VoiceState) []byte {
 	return buildJSON(wsMsg{
 		Type: MsgTypeVoiceState,
 		Payload: voiceStatePayload{
-			ChannelID:   state.ChannelID,
-			UserID:      state.UserID,
-			Username:    state.Username,
-			Muted:       state.Muted,
-			Deafened:    state.Deafened,
-			Speaking:    state.Speaking,
-			Camera:      state.Camera,
-			Screenshare: state.Screenshare,
+			JoinedAt:         state.JoinedAt,
+			ChannelStartedAt: state.ChannelStartedAt,
+			ServerTime:       state.ServerTime,
+			ChannelID:        state.ChannelID,
+			UserID:           state.UserID,
+			Username:         state.Username,
+			Muted:            state.Muted,
+			Deafened:         state.Deafened,
+			Speaking:         state.Speaking,
+			Camera:           state.Camera,
+			Screenshare:      state.Screenshare,
 		},
 	})
 }

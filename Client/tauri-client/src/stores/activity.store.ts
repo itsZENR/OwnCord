@@ -20,15 +20,6 @@ export function formatVoiceTime(seconds: number): string {
   return `${Math.floor(minutes / 60)} ${t("h", "ч")} ${minutes % 60} ${t("min", "мин")}`;
 }
 
-export function getVoiceTimeForChannel(member: MemberActivity | undefined, channelId: number): number {
-  if (member?.channel_seconds !== undefined) {
-    return member.channel_seconds[String(channelId)] ?? 0;
-  }
-  // Older servers may only return the lifetime total; keep that response
-  // useful while they are being upgraded.
-  return member?.total_seconds ?? 0;
-}
-
 export function startActivitySync(api: ApiClient): { refresh(): Promise<void>; destroy(): void } {
   const controller = new AbortController();
   let pending = false;

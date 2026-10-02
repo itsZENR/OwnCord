@@ -23,7 +23,7 @@ import {
 } from "../../src/stores/channels.store";
 import { authStore } from "../../src/stores/auth.store";
 import { uiStore, toggleCategory } from "../../src/stores/ui.store";
-import { voiceStore, updateVoiceState } from "../../src/stores/voice.store";
+import { voiceStore, updateVoiceState, removeVoiceUser, setVoiceStates } from "../../src/stores/voice.store";
 import { membersStore } from "../../src/stores/members.store";
 import type { ReadyChannel } from "../../src/lib/types";
 
@@ -139,6 +139,36 @@ describe("ChannelSidebar", () => {
     // Clean up any context menus left on document.body
     document.querySelectorAll(".context-menu").forEach((el) => el.remove());
     document.querySelectorAll(".user-vol-menu").forEach((el) => el.remove());
+    vi.useRealTimers();
+  });
+
+  it("ticks individual and shared sessions in place, keeping the shared start when the first user leaves", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1_800_000_000_000);
+    const serverTime = 1_700_000_000;
+    setChannels(testChannels);
+    setVoiceStates([
+      { user_id: 1, channel_id: 3, muted: false, deafened: false, joined_at: serverTime - 7200, channel_started_at: serverTime - 7200, server_time: serverTime },
+      { user_id: 2, channel_id: 3, muted: false, deafened: false, joined_at: serverTime - 60, channel_started_at: serverTime - 7200, server_time: serverTime },
+    ]);
+    channelsStore.flush();
+    voiceStore.flush();
+    sidebar.mount(container);
+    const row = container.querySelector('[data-voice-uid="2"]')!;
+    expect(row.querySelector(".vu-session-time")?.textContent).toBe("00:01:00");
+    expect(container.querySelector(".vc-session-time")?.textContent).toBe("02:00:00");
+    vi.advanceTimersByTime(5000);
+    expect(container.querySelector('[data-voice-uid="2"]')).toBe(row);
+    expect(row.querySelector(".vu-session-time")?.textContent).toBe("00:01:05");
+    removeVoiceUser({ user_id: 1, channel_id: 3 });
+    voiceStore.flush();
+    expect(container.querySelector(".vc-session-time")?.textContent).toBe("02:00:05");
+    removeVoiceUser({ user_id: 2, channel_id: 3 });
+    voiceStore.flush();
+    expect(container.querySelector(".vc-session-time")).toBeNull();
+    const timerCount = vi.getTimerCount();
+    sidebar.destroy?.();
+    expect(vi.getTimerCount()).toBeLessThan(timerCount);
   });
 
   it("renders channel list from store", () => {

@@ -11,7 +11,8 @@ import {
   appendChildren,
 } from "@lib/dom";
 import { createIcon } from "@lib/icons";
-import { activityStore, formatVoiceTime, getVoiceTimeForChannel } from "@stores/activity.store";
+import { activityStore } from "@stores/activity.store";
+import { createSessionTimer, refreshSessionTimers, getChannelSessionStart } from "@lib/voiceSessionTime";
 import { createVoiceRegalia } from "@components/VoiceRegalia";
 import { t } from "@lib/i18n";
 import type { MountableComponent } from "@lib/safe-render";
@@ -248,6 +249,8 @@ function renderVoiceChannelItem(
   // Render connected voice users below the channel
   const voiceUsers = getChannelVoiceUsers(channel.id);
   if (voiceUsers.length > 0) {
+    item.appendChild(createSessionTimer(getChannelSessionStart(voiceUsers), "vc-session-time",
+      t("Current channel session — since the first participant joined", "Общая сессия — с подключения первого участника")));
     const usersContainer = createElement("div", { class: "voice-users-list" });
     for (const user of voiceUsers) {
       const rowClasses = user.speaking
@@ -272,11 +275,8 @@ function renderVoiceChannelItem(
         user.username || "Unknown",
       );
       row.appendChild(nameEl);
-      const activity = activityStore.getState();
-      if (activity.loaded && !activity.error) {
-        row.appendChild(createElement("span", { class: "vu-hours", title: t("Time in this voice channel", "Время в этом голосовом канале") },
-          formatVoiceTime(getVoiceTimeForChannel(activity.members.get(user.userId), channel.id))));
-      }
+      row.appendChild(createSessionTimer(user.joinedAt, "vu-session-time",
+        t("Time in the current connection", "Время текущего подключения")));
 
       if (user.camera) {
         const cameraIcon = createElement("span", { class: "vu-status" });
@@ -738,6 +738,7 @@ export function createChannelSidebar(options: ChannelSidebarOptions): MountableC
   let root: HTMLDivElement | null = null;
   let channelList: HTMLDivElement | null = null;
   let serverNameEl: HTMLSpanElement | null = null;
+  let sessionTimer: ReturnType<typeof setInterval> | null = null;
 
   const unsubscribers: Array<() => void> = [];
 
@@ -788,6 +789,8 @@ export function createChannelSidebar(options: ChannelSidebarOptions): MountableC
     // Initial render
     renderChannels();
 
+    sessionTimer = setInterval(() => { if (channelList) refreshSessionTimers(channelList); }, 1000);
+
     // Subscribe to channels store changes (channels map OR active channel)
     const unsubChannelsMap = channelsStore.subscribeSelector(
       (s) => s.channels,
@@ -830,6 +833,7 @@ export function createChannelSidebar(options: ChannelSidebarOptions): MountableC
         structSig += `|${chId}`;
         for (const [uid, u] of users) {
           structSig += `:${uid}${u.muted ? "m" : ""}${u.deafened ? "d" : ""}${u.camera ? "c" : ""}${u.screenshare ? "s" : ""}`;
+          structSig += `@${u.joinedAt ?? ""}/${u.channelStartedAt ?? ""}`;
         }
       }
       if (structSig !== prevVoiceStructureSig) {
@@ -854,6 +858,8 @@ export function createChannelSidebar(options: ChannelSidebarOptions): MountableC
   }
 
   function destroy(): void {
+    if (sessionTimer !== null) clearInterval(sessionTimer);
+    sessionTimer = null;
     ac.abort();
     globalDragRefCount = Math.max(0, globalDragRefCount - 1);
     if (globalDragRefCount === 0 && globalDragAc !== null) {

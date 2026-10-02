@@ -6,6 +6,12 @@ import (
 	"fmt"
 )
 
+const voiceStateSelect = `SELECT vs.user_id, vs.channel_id, u.username,
+    vs.muted, vs.deafened, vs.speaking, vs.camera, vs.screenshare,
+    COALESCE(unixepoch(vs.joined_at), 0), COALESCE(s.started_at, 0), unixepoch()
+    FROM voice_states vs JOIN users u ON u.id = vs.user_id
+    LEFT JOIN voice_channel_sessions s ON s.channel_id = vs.channel_id`
+
 // JoinVoiceChannel inserts or replaces the user's voice state for the given
 // channel. If the user is already in a different channel, the old row is
 // replaced. Muted, deafened, and speaking are reset to false on join.
@@ -60,12 +66,7 @@ func (d *DB) LeaveVoiceChannelIfIn(userID, channelID int64) error {
 // or nil if the user is not in any voice channel.
 func (d *DB) GetVoiceState(userID int64) (*VoiceState, error) {
 	row := d.sqlDB.QueryRow(
-		`SELECT vs.user_id, vs.channel_id, u.username,
-		        vs.muted, vs.deafened, vs.speaking,
-		        vs.camera, vs.screenshare
-		 FROM voice_states vs
-		 JOIN users u ON u.id = vs.user_id
-		 WHERE vs.user_id = ?`,
+		voiceStateSelect+` WHERE vs.user_id = ?`,
 		userID,
 	)
 	return scanVoiceState(row)
@@ -75,12 +76,7 @@ func (d *DB) GetVoiceState(userID int64) (*VoiceState, error) {
 // given voice channel.
 func (d *DB) GetChannelVoiceStates(channelID int64) ([]VoiceState, error) {
 	rows, err := d.sqlDB.Query(
-		`SELECT vs.user_id, vs.channel_id, u.username,
-		        vs.muted, vs.deafened, vs.speaking,
-		        vs.camera, vs.screenshare
-		 FROM voice_states vs
-		 JOIN users u ON u.id = vs.user_id
-		 WHERE vs.channel_id = ?
+		voiceStateSelect+` WHERE vs.channel_id = ?
 		 ORDER BY vs.joined_at ASC`,
 		channelID,
 	)
@@ -110,12 +106,7 @@ func (d *DB) GetChannelVoiceStates(channelID int64) ([]VoiceState, error) {
 // query. Used at startup to build the ready payload without N+1 per-channel queries.
 func (d *DB) GetAllVoiceStates() ([]VoiceState, error) {
 	rows, err := d.sqlDB.Query(
-		`SELECT vs.user_id, vs.channel_id, u.username,
-		        vs.muted, vs.deafened, vs.speaking,
-		        vs.camera, vs.screenshare
-		 FROM voice_states vs
-		 JOIN users u ON u.id = vs.user_id
-		 ORDER BY vs.channel_id, vs.joined_at ASC`,
+		voiceStateSelect + ` ORDER BY vs.channel_id, vs.joined_at ASC`,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("GetAllVoiceStates: %w", err)
@@ -260,6 +251,7 @@ func scanVoiceState(row *sql.Row) (*VoiceState, error) {
 		&vs.UserID, &vs.ChannelID, &vs.Username,
 		&muted, &deafened, &speaking,
 		&camera, &screenshare,
+		&vs.JoinedAt, &vs.ChannelStartedAt, &vs.ServerTime,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
@@ -283,6 +275,7 @@ func scanVoiceStateRow(rows *sql.Rows) (VoiceState, error) {
 		&vs.UserID, &vs.ChannelID, &vs.Username,
 		&muted, &deafened, &speaking,
 		&camera, &screenshare,
+		&vs.JoinedAt, &vs.ChannelStartedAt, &vs.ServerTime,
 	)
 	if err != nil {
 		return vs, fmt.Errorf("scanVoiceStateRow: %w", err)

@@ -14,11 +14,13 @@
 .workspace-content > .chat-area { flex: 1; min-height: 0; width: 100%; }
 .chat-header { padding: 0 24px; border-bottom: 1px solid var(--border); box-shadow: none; }
 .channel-item { margin: 2px 8px; border-radius: 8px; }
+.channel-item .ch-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .voice-user-item { gap: 6px; }
 .vu-avatar-stack { display: flex; flex-direction: column; align-items: center; gap: 2px; flex-shrink: 0; }
 .vu-avatar-stack .voice-regalia { max-width: 34px; font-size: 8px; }
 .vu-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.vu-hours { font-size: 10px; font-variant-numeric: tabular-nums; color: var(--text-muted); white-space: nowrap; margin-left: auto; padding: 2px 5px; border-radius: 5px; background: var(--bg-tertiary); }
+.vu-session-time, .vc-session-time { flex-shrink: 0; font-size: 10px; font-variant-numeric: tabular-nums; color: var(--text-muted); white-space: nowrap; margin-left: auto; padding: 2px 4px; border-radius: 5px; background: var(--bg-tertiary); }
+.vc-session-time { color: var(--accent); }
 .achievements-page { flex: 1; min-height: 0; overflow-y: auto; padding: clamp(24px, 4vw, 64px); }
 .achievement-hero { position: relative; padding: 8px 0 28px; max-width: 1000px; }
 .eyebrow { display: block; color: var(--accent); font-size: 10px; font-weight: 750; letter-spacing: .18em; margin-bottom: 16px; }
@@ -75,9 +77,16 @@
   border-radius: 50%; color: var(--accent); background: color-mix(in srgb, var(--accent) 13%, var(--bg-secondary));
   font-size: 12px; font-weight: 700;
 }
-.activity-board-member { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-.activity-board-member strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.activity-board-member { display: flex; flex: 1; flex-direction: column; gap: 3px; min-width: 0; }
+.activity-board-member strong { margin-left: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 .activity-board-member small { color: var(--text-muted); font-size: 10px; }
+.activity-channel-details { margin-top: 6px; font-size: 11px; color: var(--text-muted); }
+.activity-channel-details summary { cursor: pointer; width: fit-content; }
+.activity-channel-details summary:hover { color: var(--text-normal); }
+.activity-channel-details summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.activity-channel-times { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 16px; max-width: 400px; margin: 12px 0 0; }
+.activity-channel-times dt { overflow-wrap: anywhere; }
+.activity-channel-times dd { margin: 0; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .activity-board-time { margin-left: auto; white-space: nowrap; }
 .compact-mode .message .msg-avatar-stack { width: 24px; left: 8px; top: 2px; }
 .compact-mode .message .msg-avatar-stack .voice-regalia { max-width: 24px; padding: 1px 2px; font-size: 8px; }

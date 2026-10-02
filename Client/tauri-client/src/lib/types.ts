@@ -105,6 +105,9 @@ export interface ReadyMember {
 
 /** Voice state object in the ready payload. */
 export interface ReadyVoiceState {
+  readonly joined_at?: number;
+  readonly channel_started_at?: number;
+  readonly server_time?: number;
   readonly channel_id: number;
   readonly user_id: number;
   readonly muted: boolean;
@@ -243,6 +246,9 @@ export interface ChannelDeletePayload {
 }
 
 export interface VoiceStatePayload {
+  readonly joined_at?: number;
+  readonly channel_started_at?: number;
+  readonly server_time?: number;
   readonly channel_id: number;
   readonly user_id: number;
   readonly username: string;

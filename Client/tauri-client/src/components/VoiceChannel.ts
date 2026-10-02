@@ -11,7 +11,8 @@ import type { VoiceUser } from "@stores/voice.store";
 import { membersStore } from "@stores/members.store";
 import { setUserVolume, getUserVolume } from "@lib/livekitSession";
 import { authStore } from "@stores/auth.store";
-import { activityStore, formatVoiceTime, getVoiceTimeForChannel } from "@stores/activity.store";
+import { activityStore } from "@stores/activity.store";
+import { createSessionTimer, refreshSessionTimers, getChannelSessionStart } from "@lib/voiceSessionTime";
 import { createVoiceRegalia } from "@components/VoiceRegalia";
 import { t } from "@lib/i18n";
 
@@ -171,11 +172,8 @@ export function createVoiceChannel(options: VoiceChannelOptions): VoiceChannelRe
 
     const name = createElement("span", { class: "vu-name" }, username);
     row.appendChild(name);
-    const activity = activityStore.getState();
-    if (activity.loaded && !activity.error) {
-      row.appendChild(createElement("span", { class: "vu-hours", title: t("Time in this voice channel", "Время в этом голосовом канале") },
-        formatVoiceTime(getVoiceTimeForChannel(activity.members.get(user.userId), options.channelId))));
-    }
+    row.appendChild(createSessionTimer(user.joinedAt, "vu-session-time",
+      t("Time in the current connection", "Время текущего подключения")));
 
     if (user.camera) {
       const cameraEl = createElement("span", { class: "vu-status" });
@@ -216,6 +214,7 @@ export function createVoiceChannel(options: VoiceChannelOptions): VoiceChannelRe
     prevMembers = members;
 
     clearChildren(usersContainer);
+    channelItem.querySelector(".vc-session-time")?.remove();
 
     if (channelUsers === undefined) {
       channelItem.classList.remove("active");
@@ -231,6 +230,8 @@ export function createVoiceChannel(options: VoiceChannelOptions): VoiceChannelRe
 
     // Mark channel-item active if there are users
     if (channelUsers.size > 0) {
+      channelItem.appendChild(createSessionTimer(getChannelSessionStart(channelUsers.values()), "vc-session-time",
+        t("Current channel session — since the first participant joined", "Общая сессия — с подключения первого участника")));
       channelItem.classList.add("active");
     } else {
       channelItem.classList.remove("active");
@@ -239,11 +240,13 @@ export function createVoiceChannel(options: VoiceChannelOptions): VoiceChannelRe
 
   // Initial render and subscribe
   update();
+  const sessionTimer = setInterval(() => refreshSessionTimers(root), 1000);
   unsubs.push(voiceStore.subscribeSelector((s) => s.voiceUsers, () => update()));
   unsubs.push(membersStore.subscribeSelector((s) => s.members, () => update()));
   unsubs.push(activityStore.subscribe(() => { prevChannelUsers = undefined; update(); }));
 
   function destroy(): void {
+    clearInterval(sessionTimer);
     closeContextMenu();
     ac.abort();
     for (const unsub of unsubs) {

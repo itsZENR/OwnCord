@@ -55,12 +55,14 @@ CREATE INDEX IF NOT EXISTS idx_voice_states_channel ON voice_states(channel_id);
 	if err := db.MigrateFS(database, migrFS); err != nil {
 		t.Fatalf("MigrateFS: %v", err)
 	}
-	activitySQL, err := migrations.FS.ReadFile("009_voice_activity.sql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := database.Exec(string(activitySQL)); err != nil {
-		t.Fatal(err)
+	for _, file := range []string{"009_voice_activity.sql", "010_voice_sessions.sql"} {
+		sql, err := migrations.FS.ReadFile(file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := database.Exec(string(sql)); err != nil {
+			t.Fatal(err)
+		}
 	}
 	return database
 }

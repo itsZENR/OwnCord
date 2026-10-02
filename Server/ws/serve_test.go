@@ -52,6 +52,7 @@ func openServeTestDB(t *testing.T) *db.DB {
 	if err := db.MigrateFS(database, migrFS); err != nil {
 		t.Fatalf("MigrateFS: %v", err)
 	}
+	applyVoiceSessionMigration(t, database)
 	return database
 }
 

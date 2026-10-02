@@ -9,6 +9,7 @@ import (
 	"github.com/owncord/server/auth"
 	"github.com/owncord/server/config"
 	"github.com/owncord/server/db"
+	"github.com/owncord/server/migrations"
 	"github.com/owncord/server/ws"
 )
 
@@ -42,7 +43,19 @@ func openVoiceTestDB(t *testing.T) *db.DB {
 	if err := db.MigrateFS(database, migrFS); err != nil {
 		t.Fatalf("MigrateFS: %v", err)
 	}
+	applyVoiceSessionMigration(t, database)
 	return database
+}
+
+func applyVoiceSessionMigration(t *testing.T, database *db.DB) {
+	t.Helper()
+	migration, err := migrations.FS.ReadFile("010_voice_sessions.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := database.Exec(string(migration)); err != nil {
+		t.Fatal(err)
+	}
 }
 
 // newVoiceHub creates a hub+db suitable for voice handler tests.
@@ -224,6 +237,15 @@ func TestVoice_Join_BroadcastsVoiceState(t *testing.T) {
 	for _, msg := range allMsgs {
 		if extractType(t, msg) == "voice_state" {
 			foundVoiceState = true
+			var env struct {
+				Payload db.VoiceState `json:"payload"`
+			}
+			if err := json.Unmarshal(msg, &env); err != nil {
+				t.Fatal(err)
+			}
+			if env.Payload.JoinedAt == 0 || env.Payload.ChannelStartedAt != env.Payload.JoinedAt || env.Payload.ServerTime < env.Payload.JoinedAt {
+				t.Fatalf("voice event missing session timestamps: %s", msg)
+			}
 			break
 		}
 	}
