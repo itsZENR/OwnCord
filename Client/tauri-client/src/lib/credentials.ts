@@ -127,6 +127,28 @@ export async function loadCredential(
   }
 }
 
+/** Preserve the saved token/password and persistence choice after a rename. */
+export async function updateSavedUsername(host: string, oldUsername: string, newUsername: string): Promise<boolean> {
+  host = normalizeServerAddress(host);
+  if (!isTauri()) {
+    try {
+      for (const storage of [localStorage, sessionStorage]) {
+        const raw = storage.getItem(webKey(host));
+        if (!raw) continue;
+        const saved = JSON.parse(raw) as Record<string, unknown>;
+        if (typeof saved.username !== "string" || saved.username.toLowerCase() !== oldUsername.toLowerCase()) continue;
+        storage.setItem(webKey(host), JSON.stringify({ ...saved, username: newUsername }));
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  const saved = await loadCredential(host);
+  if (!saved || saved.username.toLowerCase() !== oldUsername.toLowerCase()) return true;
+  return saveCredential(host, newUsername, saved.token, saved.password);
+}
+
 /**
  * Delete a credential from Windows Credential Manager.
  */

@@ -4,7 +4,7 @@
  * Subscribes to uiStore for settingsOpen state.
  */
 
-import { createElement, appendChildren, clearChildren } from "@lib/dom";
+import { createElement, appendChildren, clearChildren, setText } from "@lib/dom";
 import { createIcon } from "@lib/icons";
 import type { IconName } from "@lib/icons";
 import type { MountableComponent } from "@lib/safe-render";
@@ -16,6 +16,7 @@ import type { ThemeName } from "./settings/helpers";
 import { getActiveThemeName, restoreTheme } from "@lib/themes";
 import { syncOsMotionListener } from "@lib/os-motion";
 import { buildAccountTab } from "./settings/AccountTab";
+import { setAvatarVisual } from "@lib/avatar";
 import { buildAppearanceTab } from "./settings/AppearanceTab";
 import { buildNotificationsTab } from "./settings/NotificationsTab";
 import { buildTextImagesTab } from "./settings/TextImagesTab";
@@ -33,6 +34,7 @@ export interface SettingsOverlayOptions {
   onClose(): void;
   onChangePassword(oldPassword: string, newPassword: string): Promise<void>;
   onUpdateProfile(username: string): Promise<void>;
+  onUpdateAvatar?(file: File | null): Promise<string | null>;
   onLogout(): void;
   onDeleteAccount(password: string): Promise<void>;
   onStatusChange(status: UserStatus): void;
@@ -114,6 +116,7 @@ export function createSettingsOverlay(
   let activeTab: TabName = authenticated ? "Account" : "Appearance";
   const tabButtons = new Map<TabName, HTMLButtonElement>();
   let unsubUi: (() => void) | null = null;
+  let unsubAuth: (() => void) | null = null;
 
   // Stateful tabs — create via factory for proper cleanup on tab switch
   const logsTab = createLogsTab(() => activeTab, ac.signal);
@@ -178,8 +181,8 @@ export function createSettingsOverlay(
     // User profile section at top of sidebar
     const user = authStore.getState().user;
     const profileSection = createElement("div", { class: "settings-sidebar-profile" });
-    const avatarEl = createElement("div", { class: "settings-sidebar-avatar" },
-      (user?.username ?? "U").charAt(0).toUpperCase());
+    const avatarEl = createElement("div", { class: "settings-sidebar-avatar" });
+    setAvatarVisual(avatarEl, user?.username ?? "U", user?.avatar ?? null);
     const profileInfo = createElement("div", {});
     const profileName = createElement("div", { class: "settings-sidebar-name" },
       user?.username ?? "Unknown");
@@ -192,6 +195,13 @@ export function createSettingsOverlay(
     appendChildren(profileInfo, profileName, editProfileLink);
     appendChildren(profileSection, avatarEl, profileInfo);
     sidebar.appendChild(profileSection);
+    unsubAuth = authStore.subscribeSelector(
+      (state) => state.user,
+      (updated) => {
+        setText(profileName, updated?.username ?? "Unknown");
+        setAvatarVisual(avatarEl, updated?.username ?? "U", updated?.avatar ?? null);
+      },
+    );
 
     // "User Settings" category — only Account belongs here (hidden when not authenticated)
     if (authenticated) {
@@ -299,6 +309,8 @@ export function createSettingsOverlay(
       unsubUi();
       unsubUi = null;
     }
+    unsubAuth?.();
+    unsubAuth = null;
     logsTab.cleanup();
     voiceTab.cleanup();
     tabButtons.clear();

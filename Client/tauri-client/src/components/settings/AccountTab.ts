@@ -7,6 +7,8 @@
 import { createElement, appendChildren, setText } from "@lib/dom";
 import type { UserStatus } from "@lib/types";
 import { authStore } from "@stores/auth.store";
+import { setAvatarVisual } from "@lib/avatar";
+import { t } from "@lib/i18n";
 import type { SettingsOverlayOptions } from "../SettingsOverlay";
 import { loadPref, savePref } from "./helpers";
 
@@ -18,6 +20,7 @@ interface ProfileCardResult {
   readonly card: HTMLDivElement;
   readonly headerName: HTMLDivElement;
   readonly usernameValue: HTMLDivElement;
+  readonly avatarLarge: HTMLDivElement;
   readonly editUserProfileBtn: HTMLButtonElement;
   readonly editUsernameBtn: HTMLButtonElement;
 }
@@ -26,38 +29,37 @@ interface ProfileCardResult {
 // Profile card builder
 // ---------------------------------------------------------------------------
 
-function buildProfileCard(username: string): ProfileCardResult {
+function buildProfileCard(username: string, avatar: string | null): ProfileCardResult {
   const card = createElement("div", { class: "account-card" });
   const banner = createElement("div", { class: "account-banner" });
 
   // Avatar overlapping the banner
   const avatarWrap = createElement("div", { class: "account-avatar-wrap" });
-  const avatarLarge = createElement("div", { class: "account-avatar-large" },
-    username.charAt(0).toUpperCase(),
-  );
+  const avatarLarge = createElement("div", { class: "account-avatar-large" });
+  setAvatarVisual(avatarLarge, username, avatar);
   const statusDot = createElement("div", { class: "account-status-dot" });
   appendChildren(avatarWrap, avatarLarge, statusDot);
 
   // Header row
   const accountHeader = createElement("div", { class: "account-header" });
   const headerName = createElement("div", { class: "account-header-name" }, username);
-  const editUserProfileBtn = createElement("button", { class: "ac-btn" }, "Edit User Profile");
+  const editUserProfileBtn = createElement("button", { class: "ac-btn" }, t("Edit profile", "Редактировать профиль"));
   appendChildren(accountHeader, headerName, editUserProfileBtn);
 
   // Username field row
   const fieldsContainer = createElement("div", { class: "account-fields" });
   const usernameField = createElement("div", { class: "account-field" });
   const usernameLeft = createElement("div", {});
-  const usernameLabel = createElement("div", { class: "account-field-label" }, "Username");
+  const usernameLabel = createElement("div", { class: "account-field-label" }, t("Username", "Имя пользователя"));
   const usernameValue = createElement("div", { class: "account-field-value" }, username);
   appendChildren(usernameLeft, usernameLabel, usernameValue);
-  const editUsernameBtn = createElement("button", { class: "account-field-edit" }, "Edit");
+  const editUsernameBtn = createElement("button", { class: "account-field-edit" }, t("Edit", "Изменить"));
   appendChildren(usernameField, usernameLeft, editUsernameBtn);
   fieldsContainer.appendChild(usernameField);
 
   appendChildren(card, banner, avatarWrap, accountHeader, fieldsContainer);
 
-  return { card, headerName, usernameValue, editUserProfileBtn, editUsernameBtn };
+  return { card, headerName, usernameValue, avatarLarge, editUserProfileBtn, editUsernameBtn };
 }
 
 // ---------------------------------------------------------------------------
@@ -600,18 +602,59 @@ export function buildAccountTab(
   const username = user?.username ?? "Unknown";
 
   // Profile card
-  const { card, headerName, usernameValue, editUserProfileBtn, editUsernameBtn } =
-    buildProfileCard(username);
+  const { card, headerName, usernameValue, avatarLarge, editUserProfileBtn, editUsernameBtn } =
+    buildProfileCard(username, user?.avatar ?? null);
   section.appendChild(card);
+
+  if (options.onUpdateAvatar) {
+    const avatarControls = createElement("div", { class: "account-avatar-controls" });
+    const avatarInput = createElement("input", {
+      type: "file", accept: "image/png,image/jpeg,image/webp,image/gif",
+      style: "display:none", "data-testid": "profile-avatar-input",
+    });
+    const changeAvatar = createElement("button", {
+      class: "ac-btn", type: "button", "data-testid": "profile-avatar-change",
+    }, t("Change avatar", "Сменить аватар"));
+    const removeAvatar = createElement("button", {
+      class: "account-field-edit", type: "button", "data-testid": "profile-avatar-remove",
+    }, t("Remove avatar", "Удалить аватар"));
+    removeAvatar.hidden = !user?.avatar;
+    const avatarError = createElement("div", { class: "account-avatar-error", role: "status" });
+    changeAvatar.addEventListener("click", () => avatarInput.click(), { signal });
+    const updateAvatar = async (file: File | null): Promise<void> => {
+      if (!options.onUpdateAvatar) return;
+      changeAvatar.disabled = true;
+      removeAvatar.disabled = true;
+      setText(avatarError, "");
+      try {
+        const updated = await options.onUpdateAvatar(file);
+        setAvatarVisual(avatarLarge, authStore.getState().user?.username ?? username, updated);
+        removeAvatar.hidden = !updated;
+      } catch (error) {
+        setText(avatarError, error instanceof Error ? error.message : t("Could not update avatar.", "Не удалось обновить аватар."));
+      } finally {
+        changeAvatar.disabled = false;
+        removeAvatar.disabled = false;
+        avatarInput.value = "";
+      }
+    };
+    avatarInput.addEventListener("change", () => {
+      const file = avatarInput.files?.[0];
+      if (file) void updateAvatar(file);
+    }, { signal });
+    removeAvatar.addEventListener("click", () => { void updateAvatar(null); }, { signal });
+    appendChildren(avatarControls, avatarInput, changeAvatar, removeAvatar, avatarError);
+    section.appendChild(avatarControls);
+  }
 
   // Status selector
   section.appendChild(buildStatusSelector(options, signal));
 
   // Inline edit form
   const editForm = createElement("div", { class: "setting-row", style: "display:none;margin-bottom:16px" });
-  const editInput = createElement("input", { class: "form-input", type: "text", placeholder: "New username" });
-  const saveBtn = createElement("button", { class: "ac-btn" }, "Save");
-  const cancelBtn = createElement("button", { class: "ac-btn", style: "background:var(--bg-active)" }, "Cancel");
+  const editInput = createElement("input", { class: "form-input", type: "text", placeholder: t("New username", "Новое имя"), maxlength: String(MAX_USERNAME_LEN) });
+  const saveBtn = createElement("button", { class: "ac-btn" }, t("Save", "Сохранить"));
+  const cancelBtn = createElement("button", { class: "ac-btn", style: "background:var(--bg-active)" }, t("Cancel", "Отмена"));
   appendChildren(editForm, editInput, saveBtn, cancelBtn);
 
   const usernameError = createElement("div", { style: "color:var(--red);font-size:13px;margin-top:4px" });
@@ -633,17 +676,19 @@ export function buildAccountTab(
 
   saveBtn.addEventListener("click", () => {
     const newName = editInput.value.trim();
-    if (newName.length < 2 || newName.length > MAX_USERNAME_LEN) {
-      setText(usernameError, `Username must be 2\u2013${MAX_USERNAME_LEN} characters.`);
+    const length = [...newName].length;
+    if (length < 2 || length > MAX_USERNAME_LEN) {
+      setText(usernameError, t(`Username must be 2–${MAX_USERNAME_LEN} characters.`, `Имя должно содержать от 2 до ${MAX_USERNAME_LEN} символов.`));
       return;
     }
     setText(usernameError, "");
     void options.onUpdateProfile(newName).then(() => {
       setText(headerName, newName);
       setText(usernameValue, newName);
+      setAvatarVisual(avatarLarge, newName, authStore.getState().user?.avatar ?? null);
       editForm.style.display = "none";
     }).catch((err: unknown) => {
-      setText(usernameError, err instanceof Error ? err.message : "Failed to update username.");
+      setText(usernameError, err instanceof Error ? err.message : t("Failed to update username.", "Не удалось изменить имя."));
     });
   }, { signal });
 

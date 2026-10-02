@@ -12,6 +12,8 @@ import {
 import { createIcon } from "@lib/icons";
 import { loadPref } from "@components/settings/helpers";
 import { createVoiceRegalia } from "@components/VoiceRegalia";
+import { setAvatarVisual } from "@lib/avatar";
+import { membersStore } from "@stores/members.store";
 import type { Message } from "@stores/messages.store";
 import type { MessageListOptions } from "../MessageList";
 
@@ -154,11 +156,14 @@ export function renderMessage(
   });
 
   const role = getUserRole(msg.user.id);
-  const initial = msg.user.username.charAt(0).toUpperCase();
+  const member = membersStore.getState().members.get(msg.user.id);
+  const displayName = member?.username ?? msg.user.username;
+  const displayAvatar = member?.avatar ?? msg.user.avatar;
   const avatar = createElement("div", {
     class: "msg-avatar",
     style: `background: ${roleColorVar(role)}`,
-  }, initial);
+  });
+  setAvatarVisual(avatar, displayName, displayAvatar);
   const avatarStack = createElement("div", { class: "msg-avatar-stack" });
   avatarStack.appendChild(avatar);
   const regalia = createVoiceRegalia(msg.user.id);
@@ -181,7 +186,7 @@ export function renderMessage(
   const author = createElement("span", {
     class: "msg-author",
     style: `color: ${roleColorVar(role)}`,
-  }, msg.user.username);
+  }, displayName);
   const time = createElement("span", { class: "msg-time", title: formatFullDate(msg.timestamp) }, formatMessageTimestamp(msg.timestamp));
   appendChildren(header, author, time);
   el.appendChild(header);

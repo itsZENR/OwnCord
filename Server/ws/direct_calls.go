@@ -92,7 +92,7 @@ func (h *Hub) handleDirectCall(_ context.Context, c *Client, kind string, payloa
 			return
 		}
 		call := &directCall{ID: uuid.NewString(), ChannelID: p.ChannelID, CallerID: c.userID,
-			RecipientID: targetID, CallerName: c.user.Username, RecipientName: target.user.Username,
+			RecipientID: targetID, CallerName: h.currentUsername(c), RecipientName: h.currentUsername(target),
 			State: "ringing", ExpiresAt: time.Now().Add(30 * time.Second).Unix()}
 		h.calls[c.userID] = call
 		h.calls[targetID] = call
@@ -163,7 +163,7 @@ func (h *Hub) sendCallToken(c *Client, call *directCall) bool {
 	if c.user == nil || h.livekit == nil {
 		return false
 	}
-	token, err := h.livekit.generateRoomToken(c.userID, c.user.Username, call.room(), true, true, 2*time.Minute)
+	token, err := h.livekit.generateRoomToken(c.userID, h.currentUsername(c), call.room(), true, true, 2*time.Minute)
 	if err != nil {
 		slog.Error("direct call token", "err", err)
 		return false

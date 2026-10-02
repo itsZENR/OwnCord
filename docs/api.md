@@ -248,6 +248,20 @@ Invalidate the current session token.
 
 ---
 
+### PATCH /api/v1/users/me
+
+Update the authenticated user's public name or avatar. Include at least one field. Usernames must be 2–32 characters and unique regardless of case. Upload an avatar through `POST /api/v1/uploads` first, then send its returned relative URL. PNG and JPEG images up to 512 KiB and 1024 × 1024 pixels are accepted. Send an empty `avatar` string to remove the image.
+
+**Auth:** Required (Bearer token)
+
+```json
+{ "username": "Alicia", "avatar": "/api/v1/files/01234567-89ab-cdef-0123-456789abcdef" }
+```
+
+The response includes `id`, `username`, `avatar`, `role`, and `status`. Other connected clients receive `profile_update`. Duplicate names return `409 USERNAME_TAKEN`; invalid images return `400 INVALID_AVATAR`.
+
+---
+
 ### POST /api/v1/users/me/totp/enable
 
 Start TOTP enrollment for the authenticated user. The secret is not persisted until `/api/v1/users/me/totp/confirm` succeeds.

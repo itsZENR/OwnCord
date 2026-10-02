@@ -46,6 +46,7 @@ vi.mock("@stores/auth.store", () => ({
     getState: () => ({
       user: { id: 1, username: "testuser", totp_enabled: mockTotpEnabled },
     }),
+    subscribeSelector: vi.fn(() => () => {}),
   },
   updateUser: vi.fn((patch: Record<string, unknown>) => {
     if ("totp_enabled" in patch) {

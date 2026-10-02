@@ -571,13 +571,13 @@ export function createMessageList(options: MessageListOptions): MessageListCompo
       () => { renderAll(); },
     ));
 
-    // Only re-render when member roles change, not on presence/typing updates.
-    // Extract a role-only map so shallowEqual ignores status changes.
+    // Refresh historical message authors when a member changes name or avatar.
+    // Ignore presence/typing updates to avoid needless virtual-list work.
     unsubscribers.push(membersStore.subscribeSelector(
       (s) => {
-        const roles = new Map<number, string>();
-        for (const [id, m] of s.members) roles.set(id, m.role);
-        return roles;
+        const profiles = new Map<number, string>();
+        for (const [id, m] of s.members) profiles.set(id, `${m.role}|${m.username}|${m.avatar ?? ""}`);
+        return profiles;
       },
       () => { renderAll(); },
     ));

@@ -41,6 +41,7 @@ vi.mock("@stores/auth.store", () => ({
     getState: () => ({
       user: { id: 1, username: "testuser", totp_enabled: false },
     }),
+    subscribeSelector: vi.fn(() => () => {}),
   },
   updateUser: vi.fn(),
 }));
@@ -453,7 +454,7 @@ describe("SettingsOverlay", () => {
 
     // Click "Edit User Profile" button instead of "Edit" button
     const editProfileBtn = Array.from(container.querySelectorAll(".ac-btn"))
-      .find((b) => b.textContent === "Edit User Profile") as HTMLElement;
+      .find((b) => b.textContent === "Edit profile") as HTMLElement;
     editProfileBtn.click();
 
     const editInput = container.querySelector("input.form-input[type='text']") as HTMLInputElement;
@@ -462,6 +463,29 @@ describe("SettingsOverlay", () => {
     const editForm = editInput.closest(".setting-row") as HTMLElement;
     expect(editForm.style.display).toBe("flex");
 
+    overlay.destroy?.();
+  });
+
+  it("lets an account upload and remove an avatar", async () => {
+    const onUpdateAvatar = vi.fn()
+      .mockResolvedValueOnce("/api/v1/files/01234567-89ab-cdef-0123-456789abcdef")
+      .mockResolvedValueOnce(null);
+    const overlay = createSettingsOverlay({ ...defaultOptions, onUpdateAvatar });
+    overlay.mount(container);
+
+    const input = container.querySelector("[data-testid='profile-avatar-input']") as HTMLInputElement;
+    const remove = container.querySelector("[data-testid='profile-avatar-remove']") as HTMLButtonElement;
+    expect(input).not.toBeNull();
+    expect(remove.hidden).toBe(true);
+    const file = new File(["image"], "avatar.png", { type: "image/png" });
+    Object.defineProperty(input, "files", { configurable: true, value: [file] });
+    input.dispatchEvent(new Event("change"));
+    await vi.waitFor(() => expect(onUpdateAvatar).toHaveBeenCalledWith(file));
+    await vi.waitFor(() => expect(remove.hidden).toBe(false));
+
+    remove.click();
+    await vi.waitFor(() => expect(onUpdateAvatar).toHaveBeenCalledWith(null));
+    await vi.waitFor(() => expect(remove.hidden).toBe(true));
     overlay.destroy?.();
   });
 

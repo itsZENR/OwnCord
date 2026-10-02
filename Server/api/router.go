@@ -91,6 +91,7 @@ func NewRouter(cfg *config.Config, database *db.DB, ver string, logBuf *admin.Ri
 	// WebSocket hub — WS does its own in-band auth, so no AuthMiddleware here.
 	hub := ws.NewHub(database, limiter)
 	getOnlineUsers = func() int { return hub.ClientCount() }
+	MountProfileRoutes(r, database, store, hub)
 
 	// Create LiveKit client if voice config is present; voice is disabled on failure.
 	lk, lkErr := ws.NewLiveKitClient(&cfg.Voice)

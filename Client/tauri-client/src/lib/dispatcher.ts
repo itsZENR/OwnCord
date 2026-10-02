@@ -3,7 +3,7 @@
 // Each server message type maps to one or more store actions.
 
 import type { WsClient } from "./ws";
-import { authStore, setAuth, clearAuth } from "@stores/auth.store";
+import { authStore, setAuth, clearAuth, updateUser } from "@stores/auth.store";
 import { setTransientError } from "@stores/ui.store";
 import {
   setChannels,
@@ -27,6 +27,7 @@ import {
   addMember,
   removeMember,
   updateMemberRole,
+  updateMemberProfile,
   updatePresence,
   setTyping,
 } from "@stores/members.store";
@@ -48,6 +49,7 @@ import {
   removeDmChannel,
   updateDmLastMessage,
   updateDmLastMessagePreview,
+  updateDmRecipient,
 } from "@stores/dm.store";
 import type { DmChannel } from "@stores/dm.store";
 import type { DmChannelPayload } from "./types";
@@ -316,6 +318,29 @@ export function wireDispatcher(ws: WsClient): DispatcherCleanup {
     ws.on(S.MEMBER_UPDATE, (payload) => {
       log.info("Member role updated", { userId: payload.user_id, role: payload.role });
       updateMemberRole(payload.user_id, payload.role);
+    }),
+  );
+
+  unsubs.push(
+    ws.on(S.PROFILE_UPDATE, (payload) => {
+      const avatar = payload.avatar || null;
+      updateMemberProfile(payload.user_id, payload.username, avatar);
+      updateDmRecipient(payload.user_id, payload.username, payload.avatar);
+      if (authStore.getState().user?.id === payload.user_id) {
+        updateUser({ username: payload.username, avatar });
+      }
+      channelsStore.setState((prev) => {
+        const next = new Map(prev.channels);
+        let changed = false;
+        for (const dm of dmStore.getState().channels) {
+          if (dm.recipient.id !== payload.user_id) continue;
+          const channel = next.get(dm.channelId);
+          if (channel === undefined || channel.type !== "dm") continue;
+          next.set(dm.channelId, { ...channel, name: payload.username });
+          changed = true;
+        }
+        return changed ? { ...prev, channels: next } : prev;
+      });
     }),
   );
 

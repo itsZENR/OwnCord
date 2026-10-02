@@ -133,6 +133,27 @@ describe("WS Dispatcher", () => {
     expect(state.serverName).toBe("TestServer");
   });
 
+  it("updates connected members and own profile after a profile change", () => {
+    mock.dispatch("auth_ok", {
+      user: { id: 1, username: "alice", avatar: null, role: "member" },
+      server_name: "TestServer",
+      motd: "",
+    });
+    mock.dispatch("ready", {
+      channels: [],
+      members: [{ id: 1, username: "alice", avatar: null, role: "member", status: "online" }],
+      voice_states: [],
+      roles: [],
+    });
+    mock.dispatch("profile_update", {
+      user_id: 1,
+      username: "alicia",
+      avatar: "/api/v1/files/01234567-89ab-cdef-0123-456789abcdef",
+    });
+    expect(authStore.getState().user?.username).toBe("alicia");
+    expect(membersStore.getState().members.get(1)?.avatar).toBe("/api/v1/files/01234567-89ab-cdef-0123-456789abcdef");
+  });
+
   it("wires auth_error to clear auth", () => {
     mock.dispatch("auth_error", { message: "Invalid token" });
     expect(authStore.getState().isAuthenticated).toBe(false);

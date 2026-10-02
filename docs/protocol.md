@@ -91,7 +91,7 @@ The sequence number system enables reconnection with state recovery.
 | Category | Has seq? | Examples |
 |----------|----------|---------|
 | Channel broadcasts | Yes | `chat_message`, `chat_edited`, `chat_deleted`, `reaction_update` |
-| Global broadcasts | Yes | `presence`, `member_join`, `member_leave`, `member_update`, `member_ban`, `voice_state`, `voice_leave`, `channel_create`, `channel_update`, `channel_delete`, `server_restart` |
+| Global broadcasts | Yes | `presence`, `member_join`, `member_leave`, `member_update`, `profile_update`, `member_ban`, `voice_state`, `voice_leave`, `channel_create`, `channel_update`, `channel_delete`, `server_restart` |
 | Ephemeral | No | `typing` |
 | DM messages | No | DM `chat_message`, `chat_edited`, `chat_deleted`, `reaction_update`, `dm_channel_open`, `dm_channel_close` |
 | Direct responses | No | `auth_ok`, `auth_error`, `chat_send_ok`, `error`, `voice_config`, `voice_token`, `pong` |
@@ -538,6 +538,21 @@ Triggered when an admin changes a user's role.
 }
 ```
 
+### profile_update (Server -> Client, broadcast)
+
+Sent after a user changes their public name or avatar through `PATCH /api/v1/users/me`. An empty `avatar` means no image.
+
+```json
+{
+  "type": "profile_update",
+  "payload": {
+    "user_id": 5,
+    "username": "Alicia",
+    "avatar": "/api/v1/files/01234567-89ab-cdef-0123-456789abcdef"
+  }
+}
+```
+
 ### member_ban (Server -> Client, broadcast)
 
 ```json
@@ -830,6 +845,7 @@ All rate limits are enforced server-side using a token bucket rate limiter.
 | `voice_token` | No | Direct to joiner |
 | `member_join` | Yes | All clients |
 | `member_update` | Yes | All clients |
+| `profile_update` | Yes | All clients |
 | `member_ban` | Yes | All clients |
 | `dm_channel_open` | No | Direct to participant |
 | `dm_channel_close` | No | Direct to participant |

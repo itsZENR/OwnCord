@@ -482,7 +482,19 @@ function renderPage(pageId: "connect" | "main"): void {
       }
     })();
   } else {
-    const mainPage = createMainPage({ ws, api });
+    const mainPage = createMainPage({
+      ws,
+      api,
+      onProfileRenamed: async (oldUsername, newUsername) => {
+        const host = api.getConfig().host;
+        for (const profile of profileManager.getAll()) {
+          if (profile.host === host && profile.username.toLowerCase() === oldUsername.toLowerCase()) {
+            profileManager.updateProfile(profile.id, { username: newUsername });
+          }
+        }
+        await profileManager.saveProfiles();
+      },
+    });
     safeMount(mainPage, appEl!);
     currentPage = mainPage;
   }

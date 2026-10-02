@@ -17,9 +17,10 @@ import type { ToastContainer } from "@components/Toast";
 import { initToast, teardownToast, showToast } from "@lib/toast";
 import { authStore, clearAuth, updateUser } from "@stores/auth.store";
 import { closeSettings, uiStore, setTransientError } from "@stores/ui.store";
-import { deleteCredential, loadCredential, saveCredential } from "@lib/credentials";
+import { deleteCredential, loadCredential, saveCredential, updateSavedUsername } from "@lib/credentials";
+import { prepareAvatar } from "@lib/avatarUpload";
 import { t } from "@lib/i18n";
-import { updatePresence } from "@stores/members.store";
+import { updatePresence, updateMemberProfile } from "@stores/members.store";
 import { channelsStore, getActiveChannel } from "@stores/channels.store";
 import { dmStore } from "@stores/dm.store";
 import { voiceStore } from "@stores/voice.store";
@@ -62,6 +63,7 @@ const log = createLogger("main-page");
 export interface MainPageOptions {
   readonly ws: WsClient;
   readonly api: ApiClient;
+  readonly onProfileRenamed?: (oldUsername: string, newUsername: string) => Promise<void>;
 }
 
 // ---------------------------------------------------------------------------
@@ -247,14 +249,34 @@ export function createMainPage(options: MainPageOptions): MountableComponent {
       },
       onUpdateProfile: async (username) => {
         try {
+          const oldUsername = authStore.getState().user?.username ?? "";
           const updated = await api.updateProfile({ username });
           updateUser({ username: updated.username });
-          showToast("Profile updated", "success");
+          const current = authStore.getState().user;
+          if (current) updateMemberProfile(current.id, updated.username, current.avatar);
+          const saved = await updateSavedUsername(apiConfig.host, oldUsername, updated.username);
+          if (!saved) showToast(t("Name changed, but saved sign-in could not be updated.", "Имя изменено, но сохранённый вход обновить не удалось."), "error");
+          try {
+            await options.onProfileRenamed?.(oldUsername, updated.username);
+          } catch {
+            showToast(t("Name changed, but the saved server profile could not be updated.", "Имя изменено, но профиль сервера обновить не удалось."), "error");
+          }
+          showToast(t("Profile updated", "Профиль обновлён"), "success");
         } catch (err) {
           const msg = err instanceof Error ? err.message : "Failed to update profile";
           showToast(msg, "error");
           throw err;
         }
+      },
+      onUpdateAvatar: async (file) => {
+        const avatar = file ? (await api.uploadFile(await prepareAvatar(file))).url : "";
+        const updated = await api.updateProfile({ avatar });
+        const nextAvatar = updated.avatar || null;
+        updateUser({ avatar: nextAvatar });
+        const current = authStore.getState().user;
+        if (current) updateMemberProfile(current.id, current.username, nextAvatar);
+        showToast(t("Avatar updated", "Аватар обновлён"), "success");
+        return nextAvatar;
       },
       onLogout: () => {
         void (async () => {

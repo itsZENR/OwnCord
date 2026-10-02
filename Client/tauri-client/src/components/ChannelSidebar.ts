@@ -14,6 +14,8 @@ import { createIcon } from "@lib/icons";
 import { activityStore } from "@stores/activity.store";
 import { createSessionTimer, refreshSessionTimers, getChannelSessionStart } from "@lib/voiceSessionTime";
 import { createVoiceRegalia } from "@components/VoiceRegalia";
+import { setAvatarVisual } from "@lib/avatar";
+import { membersStore } from "@stores/members.store";
 import { t } from "@lib/i18n";
 import type { MountableComponent } from "@lib/safe-render";
 import {
@@ -258,16 +260,16 @@ function renderVoiceChannelItem(
       t("Current channel session — since the first participant joined", "Общая сессия — с подключения первого участника")));
     const usersContainer = createElement("div", { class: "voice-users-list" });
     for (const user of voiceUsers) {
+      const member = membersStore.getState().members.get(user.userId);
+      const displayName = member?.username || user.username;
       const rowClasses = user.speaking
         ? "voice-user-item speaking"
         : "voice-user-item";
       const row = createElement("div", { class: rowClasses, "data-voice-uid": String(user.userId) });
 
-      const initial = user.username.length > 0
-        ? user.username.charAt(0).toUpperCase()
-        : "?";
-      const avatar = createElement("div", { class: "vu-avatar" }, initial);
-      avatar.style.background = pickAvatarColor(user.username);
+      const avatar = createElement("div", { class: "vu-avatar" });
+      avatar.style.background = pickAvatarColor(displayName);
+      setAvatarVisual(avatar, displayName, member?.avatar ?? null);
       const avatarStack = createElement("div", { class: "vu-avatar-stack" });
       avatarStack.appendChild(avatar);
       const regalia = createVoiceRegalia(user.userId);
@@ -277,7 +279,7 @@ function renderVoiceChannelItem(
       const nameEl = createElement(
         "span",
         { class: "vu-name" },
-        user.username || "Unknown",
+        displayName || "Unknown",
       );
       row.appendChild(nameEl);
       row.appendChild(createSessionTimer(user.joinedAt, "vu-session-time",
@@ -891,6 +893,10 @@ export function createChannelSidebar(options: ChannelSidebarOptions): MountableC
     });
     unsubscribers.push(unsubVoice);
     unsubscribers.push(activityStore.subscribe(() => renderChannels()));
+    unsubscribers.push(membersStore.subscribeSelector(
+      (state) => [...state.members.values()].map((member) => `${member.id}:${member.username}:${member.avatar ?? ""}`).join("|"),
+      () => renderChannels(),
+    ));
   }
 
   function destroy(): void {

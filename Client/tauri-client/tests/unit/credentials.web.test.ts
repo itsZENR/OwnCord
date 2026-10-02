@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { saveCredential, loadCredential, deleteCredential } from "../../src/lib/credentials";
+import { saveCredential, loadCredential, deleteCredential, updateSavedUsername } from "../../src/lib/credentials";
 
 describe("credentials (web/localStorage path)", () => {
   beforeEach(() => { localStorage.clear(); sessionStorage.clear(); });
@@ -33,5 +33,18 @@ describe("credentials (web/localStorage path)", () => {
     expect(sessionStorage.getItem("owncord:cred:chat.example")).not.toContain("password");
     sessionStorage.clear();
     expect(await loadCredential("chat.example")).toBeNull();
+  });
+
+  it("renames a saved login without losing its token or persistence choice", async () => {
+    await saveCredential("chat.example", "alice", "saved-token");
+    expect(await updateSavedUsername("chat.example", "alice", "alicia")).toBe(true);
+    expect(await loadCredential("chat.example")).toEqual({ username: "alicia", token: "saved-token" });
+    expect(localStorage.getItem("owncord:cred:chat.example")).not.toBeNull();
+    expect(sessionStorage.getItem("owncord:cred:chat.example")).toBeNull();
+
+    await saveCredential("chat.example", "alicia", "session-token", undefined, false);
+    expect(await updateSavedUsername("chat.example", "alicia", "ally")).toBe(true);
+    expect(await loadCredential("chat.example")).toEqual({ username: "ally", token: "session-token" });
+    expect(localStorage.getItem("owncord:cred:chat.example")).toBeNull();
   });
 });

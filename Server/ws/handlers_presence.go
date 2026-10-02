@@ -51,10 +51,7 @@ func (h *Hub) handleTyping(ctx context.Context, c *Client, payload json.RawMessa
 		}
 	}
 
-	var username string
-	if c.user != nil {
-		username = c.user.Username
-	}
+	username := h.currentUsername(c)
 
 	// Broadcast to channel, excluding sender.
 	if typCh.Type == "dm" {

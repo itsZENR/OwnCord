@@ -96,6 +96,23 @@ func (d *DB) GetUserByID(id int64) (*User, error) {
 	return scanUser(row)
 }
 
+// UpdateUserProfile changes the public name and optionally the avatar. An empty
+// avatar clears it; nil leaves it unchanged. The caller validates both fields.
+func (d *DB) UpdateUserProfile(id int64, username string, avatar *string) (*User, error) {
+	avatarValue := ""
+	if avatar != nil {
+		avatarValue = *avatar
+	}
+	_, err := d.sqlDB.Exec(
+		`UPDATE users SET username = ?, avatar = CASE WHEN ? THEN NULLIF(?, '') ELSE avatar END WHERE id = ?`,
+		username, avatar != nil, avatarValue, id,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("UpdateUserProfile: %w", err)
+	}
+	return d.GetUserByID(id)
+}
+
 // scanUser reads a User from a *sql.Row, returning nil (not an error) when the
 // row is not found.
 func scanUser(row *sql.Row) (*User, error) {

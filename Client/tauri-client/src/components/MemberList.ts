@@ -12,6 +12,7 @@ import { authStore } from "@stores/auth.store";
 import { activityStore } from "@stores/activity.store";
 import { createMemberContextMenu } from "@components/AdminActions";
 import { createVoiceRegalia } from "@components/VoiceRegalia";
+import { setAvatarVisual } from "@lib/avatar";
 import type { UserStatus } from "@lib/types";
 
 /** Options for configuring admin action callbacks on the member list. */
@@ -82,12 +83,11 @@ function createMemberItem(
     "data-testid": `member-${member.id}`,
   });
 
-  const initial = member.username.charAt(0).toUpperCase() || "?";
   const avatar = createElement(
     "div",
     { class: "mi-avatar", style: `background: ${colorVar}` },
-    initial,
   );
+  setAvatarVisual(avatar, member.username, member.avatar);
 
   const statusDot = createElement("div", {
     class: "mi-status",

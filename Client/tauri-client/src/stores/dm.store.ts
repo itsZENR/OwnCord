@@ -42,6 +42,15 @@ export function addDmChannel(channel: DmChannel): void {
   });
 }
 
+/** Keep open DM names and avatars in sync with a renamed member. */
+export function updateDmRecipient(userId: number, username: string, avatar: string): void {
+  dmStore.setState((prev) => ({
+    channels: prev.channels.map((channel) => channel.recipient.id === userId
+      ? { ...channel, recipient: { ...channel.recipient, username, avatar } }
+      : channel),
+  }));
+}
+
 /** Remove a DM channel from the list (from dm_channel_close event). */
 export function removeDmChannel(channelId: number): void {
   dmStore.setState((prev) => ({

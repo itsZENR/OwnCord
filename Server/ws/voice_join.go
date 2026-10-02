@@ -123,7 +123,7 @@ func (h *Hub) handleVoiceJoin(ctx context.Context, c *Client, payload json.RawMe
 		// when client connects directly via direct_url.
 		canPublish := h.hasChannelPerm(c, channelID, permissions.SpeakVoice)
 		canSubscribe := true
-		token, tokenErr := h.livekit.GenerateToken(c.userID, c.user.Username, channelID, canPublish, canSubscribe)
+		token, tokenErr := h.livekit.GenerateToken(c.userID, h.currentUsername(c), channelID, canPublish, canSubscribe)
 		if tokenErr != nil {
 			slog.Error("ws handleVoiceJoin GenerateToken", "err", tokenErr, "user_id", c.userID)
 			h.rollbackVoiceJoin(c, channelID)
@@ -182,7 +182,7 @@ func (h *Hub) handleVoiceJoin(ctx context.Context, c *Client, payload json.RawMe
 	}
 	slog.Info("voice join",
 		"user_id", c.userID,
-		"username", c.user.Username,
+		"username", h.currentUsername(c),
 		"channel_id", channelID,
 		"remote", c.remoteAddr,
 		"livekit_url", lkURL,
@@ -228,7 +228,7 @@ func (h *Hub) handleVoiceTokenRefresh(ctx context.Context, c *Client) {
 
 	canPublish := h.hasChannelPerm(c, channelID, permissions.SpeakVoice)
 	canSubscribe := true
-	token, err := h.livekit.GenerateToken(c.userID, c.user.Username, channelID, canPublish, canSubscribe)
+	token, err := h.livekit.GenerateToken(c.userID, h.currentUsername(c), channelID, canPublish, canSubscribe)
 	if err != nil {
 		slog.Error("ws handleVoiceTokenRefresh GenerateToken", "err", err, "user_id", c.userID)
 		c.sendMsg(buildErrorMsg(ErrCodeInternal, "failed to generate voice token"))

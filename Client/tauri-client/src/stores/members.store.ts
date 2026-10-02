@@ -97,6 +97,17 @@ export function updateMemberRole(userId: number, role: string): void {
   });
 }
 
+/** Refresh a member's public identity after a profile update broadcast. */
+export function updateMemberProfile(userId: number, username: string, avatar: string | null): void {
+  membersStore.setState((prev) => {
+    const existing = prev.members.get(userId);
+    if (!existing) return prev;
+    const next = new Map(prev.members);
+    next.set(userId, { ...existing, username, avatar });
+    return { ...prev, members: next };
+  });
+}
+
 /** Update a member's presence status. */
 export function updatePresence(userId: number, status: UserStatus): void {
   membersStore.setState((prev) => {

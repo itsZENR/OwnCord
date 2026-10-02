@@ -10,6 +10,7 @@ import type { MountableComponent } from "@lib/safe-render";
 import { Disposable } from "@lib/disposable";
 import { authStore } from "@stores/auth.store";
 import { openSettings } from "@stores/ui.store";
+import { setAvatarVisual } from "@lib/avatar";
 
 export interface UserBarOptions {
   readonly onDisconnect?: () => void;
@@ -29,10 +30,8 @@ export function createUserBar(options?: UserBarOptions): MountableComponent {
     const state = authStore.getState();
     const user = state.user;
     const username = user?.username ?? "Unknown";
-    const initial = username.charAt(0).toUpperCase() || "?";
-
     if (avatarTextEl !== null) {
-      setText(avatarTextEl, initial);
+      setAvatarVisual(avatarTextEl, username, user?.avatar ?? null);
     }
     if (nameEl !== null) {
       setText(nameEl, username);

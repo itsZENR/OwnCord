@@ -388,6 +388,23 @@ func (h *Hub) BroadcastMemberUpdate(userID int64, roleName string) {
 	h.BroadcastToAll(buildMemberUpdate(userID, roleName))
 }
 
+// BroadcastProfileUpdate refreshes public identity on all connected clients.
+func (h *Hub) BroadcastProfileUpdate(userID int64, username, avatar string) {
+	h.BroadcastToAll(buildProfileUpdate(userID, username, avatar))
+}
+
+// currentUsername reads the public name after a live rename. Client.user is a
+// connection-time snapshot and must not be mutated from the HTTP handler.
+func (h *Hub) currentUsername(c *Client) string {
+	if user, err := h.db.GetUserByID(c.userID); err == nil && user != nil {
+		return user.Username
+	}
+	if c.user != nil {
+		return c.user.Username
+	}
+	return ""
+}
+
 // SendToUser delivers msg directly to the client identified by userID.
 // Returns true if the client was found and the message was queued.
 func (h *Hub) SendToUser(userID int64, msg []byte) bool {

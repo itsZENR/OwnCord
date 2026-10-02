@@ -14,6 +14,7 @@ import {
   appendChildren,
 } from "@lib/dom";
 import { createIcon } from "@lib/icons";
+import { setAvatarVisual } from "@lib/avatar";
 import type { MountableComponent } from "@lib/safe-render";
 
 export interface DmConversation {
@@ -63,18 +64,7 @@ function renderDmItem(
   const avatar = createElement("div", { class: "dm-avatar" });
   avatar.style.background = avatarBg;
 
-  if (convo.avatar !== null) {
-    const img = createElement("img", {
-      src: convo.avatar,
-      alt: convo.username,
-    });
-    img.style.width = "100%";
-    img.style.height = "100%";
-    img.style.borderRadius = "50%";
-    avatar.appendChild(img);
-  } else {
-    setText(avatar, convo.username.charAt(0).toUpperCase());
-  }
+  setAvatarVisual(avatar, convo.username, convo.avatar);
 
   // Status indicator dot
   const statusKey = convo.status ?? "offline";

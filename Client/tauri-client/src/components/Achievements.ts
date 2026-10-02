@@ -1,4 +1,5 @@
 import { createElement, appendChildren } from "@lib/dom";
+import { setAvatarVisual } from "@lib/avatar";
 import { activityStore, formatVoiceTime } from "@stores/activity.store";
 import { authStore } from "@stores/auth.store";
 import { membersStore } from "@stores/members.store";
@@ -79,7 +80,8 @@ export function createAchievements(onRetry: () => void): { element: HTMLElement;
         class: `activity-board-row${member.id === currentUserId ? " current" : ""}`,
         role: "listitem",
       });
-      const avatar = createElement("span", { class: "activity-board-avatar", "aria-hidden": "true" }, member.username.charAt(0).toUpperCase() || "?");
+      const avatar = createElement("span", { class: "activity-board-avatar", "aria-hidden": "true" });
+      setAvatarVisual(avatar, member.username, member.avatar);
       const info = createElement("div", { class: "activity-board-member" });
       appendChildren(info,
         createElement("strong", {}, member.username),

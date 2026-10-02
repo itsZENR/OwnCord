@@ -37,6 +37,7 @@ import {
   createTauriBackend,
 } from "@lib/profiles";
 import type { ProfileManager } from "@lib/profiles";
+import { setAvatarVisual } from "@lib/avatar";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -330,7 +331,7 @@ export function createSidebarArea(opts: SidebarAreaOptions): SidebarAreaResult {
         class: "dm-avatar",
         style: "width:28px;height:28px;border-radius:50%;background:#5865F2;display:flex;align-items:center;justify-content:center;font-size:0.75rem;color:white;flex-shrink:0;",
       });
-      setText(avatar, member.username.charAt(0).toUpperCase());
+      setAvatarVisual(avatar, member.username, member.avatar);
       const nameEl = createElement("span", {}, member.username);
       const statusEl = createElement("span", {
         style: `font-size:0.75rem;margin-left:auto;color:${member.status === "online" ? "var(--green)" : "var(--text-micro)"};`,

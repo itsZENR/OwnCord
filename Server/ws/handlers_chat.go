@@ -153,7 +153,10 @@ func (h *Hub) handleChatSend(ctx context.Context, c *Client, reqID string, paylo
 
 	var username string
 	var avatar *string
-	if c.user != nil {
+	if sender, lookupErr := h.db.GetUserByID(c.userID); lookupErr == nil && sender != nil {
+		username = sender.Username
+		avatar = sender.Avatar
+	} else if c.user != nil {
 		username = c.user.Username
 		avatar = c.user.Avatar
 	}
