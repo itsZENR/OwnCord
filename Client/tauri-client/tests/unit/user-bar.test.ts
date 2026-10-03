@@ -101,6 +101,15 @@ describe("UserBar", () => {
     expect(openSettings).toHaveBeenCalledOnce();
   });
 
+  it("opens account settings from the avatar and profile name", () => {
+    setAuthState({ username: "alice" }, true);
+    comp = createUserBar();
+    comp.mount(container);
+    (container.querySelector(".ub-avatar") as HTMLElement).click();
+    (container.querySelector('[data-testid="user-bar-profile"]') as HTMLElement).click();
+    expect(openSettings).toHaveBeenCalledTimes(2);
+  });
+
   it("does not render mute or deafen buttons", () => {
     setAuthState({ username: "alice" }, true);
     comp = createUserBar();

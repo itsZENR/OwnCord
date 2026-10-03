@@ -95,6 +95,16 @@ test.describe("Member List", () => {
     const sidebarMembers = page.locator("[data-testid='sidebar-members']");
     await expect(sidebarMembers).toBeAttached({ timeout: 3_000 });
   });
+
+  test("opens another member's profile from the list", async ({ page }) => {
+    await page.locator("[data-testid='member-2']").click();
+    const profile = page.locator("[data-testid='user-profile-dialog']");
+    await expect(profile).toBeVisible();
+    await expect(profile.locator("[data-testid='user-profile-name']")).toHaveText("otheruser");
+    await expect(profile.locator("[data-testid='user-profile-copy']")).toBeVisible();
+    await profile.locator(".user-profile-close").click();
+    await expect(profile).toHaveCount(0);
+  });
 });
 
 test.describe("Member List — Multi-role", () => {

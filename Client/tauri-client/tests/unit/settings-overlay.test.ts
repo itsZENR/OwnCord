@@ -444,9 +444,7 @@ describe("SettingsOverlay", () => {
     saveBtn.click();
 
     await vi.waitFor(() => {
-      const errorEls = container.querySelectorAll("div[style*='color:var(--red)']");
-      const nameError = Array.from(errorEls).find((el) => el.textContent === "Username taken");
-      expect(nameError).not.toBeUndefined();
+      expect(container.querySelector(".account-name-feedback")?.textContent).toBe("Username taken");
     });
 
     overlay.destroy?.();
@@ -464,9 +462,25 @@ describe("SettingsOverlay", () => {
     const editInput = container.querySelector("input.form-input[type='text']") as HTMLInputElement;
     expect(editInput).not.toBeNull();
     // The edit form should be visible
-    const editForm = editInput.closest(".setting-row") as HTMLElement;
+    const editForm = editInput.closest(".account-name-edit") as HTMLElement;
     expect(editForm.style.display).toBe("flex");
 
+    overlay.destroy?.();
+  });
+
+  it("keeps the name field visible and confirms a saved name", async () => {
+    const overlay = createSettingsOverlay(defaultOptions);
+    overlay.mount(container);
+    (container.querySelector(".account-field-edit") as HTMLElement).click();
+    const form = container.querySelector("[data-testid='profile-name-edit']") as HTMLElement;
+    expect(form.closest(".account-fields")).not.toBeNull();
+    const input = form.querySelector("input") as HTMLInputElement;
+    input.value = "new-name";
+    (form.querySelector("button") as HTMLButtonElement).click();
+    await vi.waitFor(() => expect(form.querySelector(".account-name-feedback")?.textContent).toBe("Username saved"));
+    expect(form.style.display).toBe("flex");
+    expect(input.value).toBe("new-name");
+    expect(container.querySelector(".account-field-value")?.textContent).toBe("new-name");
     overlay.destroy?.();
   });
 
@@ -493,6 +507,18 @@ describe("SettingsOverlay", () => {
     overlay.destroy?.();
   });
 
+  it("opens the avatar file picker when the large avatar is clicked", () => {
+    const onUpdateAvatar = vi.fn().mockResolvedValue(null);
+    const overlay = createSettingsOverlay({ ...defaultOptions, onUpdateAvatar });
+    overlay.mount(container);
+    const avatar = container.querySelector(".account-avatar-large") as HTMLElement;
+    const input = container.querySelector("[data-testid='profile-avatar-input']") as HTMLInputElement;
+    const click = vi.spyOn(input, "click");
+    avatar.click();
+    expect(click).toHaveBeenCalledOnce();
+    overlay.destroy?.();
+  });
+
   it("Cancel button hides the username edit form", () => {
     const overlay = createSettingsOverlay(defaultOptions);
     overlay.mount(container);
@@ -508,7 +534,7 @@ describe("SettingsOverlay", () => {
 
     // Edit form should be hidden
     const editInput = container.querySelector("input.form-input[type='text']") as HTMLInputElement;
-    const editForm = editInput.closest(".setting-row") as HTMLElement;
+    const editForm = editInput.closest(".account-name-edit") as HTMLElement;
     expect(editForm.style.display).toBe("none");
 
     overlay.destroy?.();

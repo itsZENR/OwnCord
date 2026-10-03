@@ -4,6 +4,7 @@ import type { MemberListOptions } from "@components/MemberList";
 import { membersStore } from "@stores/members.store";
 import type { Member } from "@stores/members.store";
 import { authStore } from "@stores/auth.store";
+import { activityStore } from "@stores/activity.store";
 import type { UserStatus } from "../../src/lib/types";
 
 function resetStore(): void {
@@ -319,5 +320,30 @@ describe("MemberList", () => {
 
     expect(container.querySelectorAll(".member-item").length).toBe(1);
     expect(container.querySelector(".mi-name")?.textContent).toBe("Solo");
+  });
+
+  it("opens another member's profile and copies the displayed username", async () => {
+    const originalClipboard = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    activityStore.setState(() => ({
+      members: new Map([[2, { user_id: 2, total_seconds: 7200, sessions: 1 }]]),
+      loaded: true, error: null,
+    }));
+    setTestMembers([makeMember({ id: 2, username: "Bob", role: "admin" })]);
+    memberList.mount(container);
+    try {
+      (container.querySelector('[data-testid="member-2"]') as HTMLElement).click();
+      const dialog = document.querySelector('[data-testid="user-profile-dialog"]') as HTMLElement;
+      expect(dialog.querySelector('[data-testid="user-profile-name"]')?.textContent).toBe("Bob");
+      expect(dialog.textContent).toContain("2 h 0 min");
+      (dialog.querySelector('[data-testid="user-profile-copy"]') as HTMLButtonElement).click();
+      await vi.waitFor(() => expect(writeText).toHaveBeenCalledWith("Bob"));
+      (dialog.querySelector(".user-profile-close") as HTMLButtonElement).click();
+      expect(document.querySelector('[data-testid="user-profile-dialog"]')).toBeNull();
+    } finally {
+      if (originalClipboard) Object.defineProperty(navigator, "clipboard", originalClipboard);
+      else Reflect.deleteProperty(navigator, "clipboard");
+    }
   });
 });

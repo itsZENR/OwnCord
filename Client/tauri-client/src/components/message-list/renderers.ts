@@ -13,6 +13,7 @@ import { createIcon } from "@lib/icons";
 import { loadPref } from "@components/settings/helpers";
 import { createVoiceRegalia } from "@components/VoiceRegalia";
 import { setAvatarVisual } from "@lib/avatar";
+import { showUserProfile } from "@components/UserProfileDialog";
 import { membersStore } from "@stores/members.store";
 import type { Message } from "@stores/messages.store";
 import type { MessageListOptions } from "../MessageList";
@@ -164,6 +165,15 @@ export function renderMessage(
     style: `background: ${roleColorVar(role)}`,
   });
   setAvatarVisual(avatar, displayName, displayAvatar);
+  const openProfile = (): void => showUserProfile(msg.user.id, { username: displayName, avatar: displayAvatar });
+  avatar.setAttribute("role", "button");
+  avatar.setAttribute("tabindex", "0");
+  avatar.addEventListener("click", openProfile, { signal });
+  avatar.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    openProfile();
+  }, { signal });
   const avatarStack = createElement("div", { class: "msg-avatar-stack" });
   avatarStack.appendChild(avatar);
   const regalia = createVoiceRegalia(msg.user.id);
@@ -187,6 +197,14 @@ export function renderMessage(
     class: "msg-author",
     style: `color: ${roleColorVar(role)}`,
   }, displayName);
+  author.setAttribute("role", "button");
+  author.setAttribute("tabindex", "0");
+  author.addEventListener("click", openProfile, { signal });
+  author.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    openProfile();
+  }, { signal });
   const time = createElement("span", { class: "msg-time", title: formatFullDate(msg.timestamp) }, formatMessageTimestamp(msg.timestamp));
   appendChildren(header, author, time);
   el.appendChild(header);

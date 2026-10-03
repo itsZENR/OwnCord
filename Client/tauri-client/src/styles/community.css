@@ -16,6 +16,27 @@
 .channel-item { margin: 2px 8px; border-radius: 8px; }
 .channel-item .ch-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .voice-user-item { gap: 6px; }
+.ub-avatar[role="button"], .ub-info[role="button"], .member-item[role="button"],
+.msg-avatar[role="button"], .msg-author[role="button"],
+.vu-avatar-stack[role="button"], .vu-name[role="button"] { cursor: pointer; }
+.ub-avatar[role="button"]:focus-visible, .ub-info[role="button"]:focus-visible,
+.member-item[role="button"]:focus-visible, .msg-avatar[role="button"]:focus-visible,
+.msg-author[role="button"]:focus-visible, .vu-avatar-stack[role="button"]:focus-visible,
+.vu-name[role="button"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.msg-author[role="button"]:hover, .vu-name[role="button"]:hover { text-decoration: underline; }
+.chat-header .ch-name.profile-link { cursor: pointer; }
+.chat-header .ch-name.profile-link:hover { text-decoration: underline; }
+.chat-header .ch-name.profile-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.user-profile-overlay { position: fixed; inset: 0; z-index: 520; display: grid; place-items: center; padding: 20px; background: #000a; }
+.user-profile-card { position: relative; width: min(100%, 370px); overflow: hidden; border: 1px solid var(--border); border-radius: 16px; background: var(--bg-secondary); box-shadow: 0 20px 70px #0008; color: var(--text-normal); }
+.user-profile-banner { height: 100px; background: var(--accent); }
+.user-profile-close { position: absolute; top: 12px; right: 12px; width: 32px; height: 32px; border-radius: 8px; background: #0007; color: white; font-size: 24px; line-height: 1; cursor: pointer; }
+.user-profile-avatar { position: relative; display: grid; place-items: center; width: 84px; height: 84px; margin: -42px 0 0 20px; overflow: hidden; border: 5px solid var(--bg-secondary); border-radius: 50%; background: var(--accent); color: white; font-size: 30px; font-weight: 700; }
+.user-profile-body { padding: 16px 20px 22px; }
+.user-profile-body h2 { margin: 0 0 16px; color: var(--header-primary); font-size: 20px; overflow-wrap: anywhere; }
+.user-profile-meta { margin: 8px 0; color: var(--text-muted); font-size: 13px; }
+.user-profile-copy { margin: 18px 0 0; }
+.user-profile-feedback { min-height: 18px; margin-top: 8px; color: var(--text-muted); font-size: 12px; }
 .vu-avatar-stack { display: flex; flex-direction: column; align-items: center; gap: 2px; flex-shrink: 0; }
 .vu-avatar-stack .voice-regalia { max-width: 34px; font-size: 8px; }
 .vu-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }

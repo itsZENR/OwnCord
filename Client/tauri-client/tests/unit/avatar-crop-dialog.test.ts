@@ -50,6 +50,19 @@ describe("avatar crop", () => {
     expect(await pending).toBeNull();
   });
 
+  it("zooms with the mouse wheel and keeps the slider in sync", async () => {
+    const pending = chooseAvatarCrop(new File(["image"], "avatar.png", { type: "image/png" }), new AbortController().signal);
+    await vi.waitFor(() => expect(document.querySelector("[data-testid='avatar-crop-viewport']")).not.toBeNull());
+    const viewport = document.querySelector("[data-testid='avatar-crop-viewport']") as HTMLElement;
+    const wheel = new WheelEvent("wheel", { deltaY: -100, clientX: 140, clientY: 140, cancelable: true });
+    viewport.dispatchEvent(wheel);
+    const slider = document.querySelector("[data-testid='avatar-crop-zoom']") as HTMLInputElement;
+    expect(wheel.defaultPrevented).toBe(true);
+    expect(Number(slider.value)).toBeGreaterThan(1);
+    (document.querySelector("[data-testid='avatar-crop-save']") as HTMLButtonElement).click();
+    expect((await pending)?.zoom).toBe(Number(slider.value));
+  });
+
   it("keeps the selected square within the source image", () => {
     expect(avatarSourceRect(400, 200, { centerX: 0.95, centerY: 0, zoom: 2 })).toEqual({ x: 300, y: 0, side: 100 });
   });

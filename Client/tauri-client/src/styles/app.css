@@ -2189,6 +2189,15 @@
 .account-avatar-large, .settings-sidebar-avatar, .mi-avatar, .vu-avatar, .msg-avatar, .dm-avatar, .activity-board-avatar, .ub-avatar { position: relative; }
 .avatar-image { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
 .account-avatar-large { overflow: hidden; }
+.account-avatar-large[role="button"] { cursor: pointer; }
+.account-avatar-large[role="button"]:hover { filter: brightness(1.12); }
+.account-name-edit { align-items: center; gap: 8px; flex-wrap: wrap; padding: 12px; border-top: 1px solid var(--border); }
+.account-name-edit .form-input { min-width: 130px; flex: 1; }
+.account-name-edit .ac-btn { margin: 0; }
+.account-name-edit .ac-btn:disabled { opacity: .6; cursor: wait; }
+.account-name-feedback { width: 100%; min-height: 18px; color: var(--text-muted); font-size: 12px; }
+.account-name-feedback[data-state="error"] { color: var(--red); }
+.account-name-feedback[data-state="success"] { color: var(--green); }
 .mi-status, .dm-status { z-index: 1; }
 .account-avatar-controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 0 16px 16px; }
 .account-avatar-controls .ac-btn { margin-left: 0; }

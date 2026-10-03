@@ -13,6 +13,8 @@ import { activityStore } from "@stores/activity.store";
 import { createMemberContextMenu } from "@components/AdminActions";
 import { createVoiceRegalia } from "@components/VoiceRegalia";
 import { setAvatarVisual } from "@lib/avatar";
+import { t } from "@lib/i18n";
+import { showUserProfile } from "@components/UserProfileDialog";
 import type { UserStatus } from "@lib/types";
 
 /** Options for configuring admin action callbacks on the member list. */
@@ -109,6 +111,15 @@ function createMemberItem(
   setText(name, member.username);
 
   appendChildren(item, avatarStack, name);
+  item.setAttribute("role", "button");
+  item.setAttribute("tabindex", "0");
+  item.setAttribute("aria-label", `${member.username} — ${t("open profile", "открыть профиль")}`);
+  item.addEventListener("click", () => showUserProfile(member.id), { signal });
+  item.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    showUserProfile(member.id);
+  }, { signal });
 
   // Context menu for admin actions
   item.addEventListener("contextmenu", (e) => {

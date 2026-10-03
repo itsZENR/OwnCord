@@ -5,6 +5,7 @@ import { t } from "@lib/i18n";
 
 import { createElement, appendChildren, setText } from "@lib/dom";
 import { createIcon } from "@lib/icons";
+import { showUserProfile } from "@components/UserProfileDialog";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -78,12 +79,29 @@ export function buildChatHeader(
 
 export function updateChatHeaderForDm(
   refs: ChatHeaderRefs,
-  recipient: { username: string; status: string } | null,
+  recipient: { id?: number; username: string; status: string; avatar?: string | null } | null,
 ): void {
+  refs.nameEl.removeAttribute("role");
+  refs.nameEl.removeAttribute("tabindex");
+  refs.nameEl.classList.remove("profile-link");
+  refs.nameEl.onclick = null;
+  refs.nameEl.onkeydown = null;
   if (recipient !== null) {
     setText(refs.hashEl, "@");
     setText(refs.nameEl, recipient.username);
     setText(refs.topicEl, recipient.status);
+    if (recipient.id !== undefined) {
+      const userId = recipient.id;
+      refs.nameEl.setAttribute("role", "button");
+      refs.nameEl.setAttribute("tabindex", "0");
+      refs.nameEl.classList.add("profile-link");
+      refs.nameEl.onclick = () => showUserProfile(userId, recipient);
+      refs.nameEl.onkeydown = (event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        showUserProfile(userId, recipient);
+      };
+    }
   } else {
     setText(refs.hashEl, "#");
   }

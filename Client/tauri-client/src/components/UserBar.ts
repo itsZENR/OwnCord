@@ -55,11 +55,24 @@ export function createUserBar(options?: UserBarOptions): MountableComponent {
       style: "background: var(--green); width: 10px; height: 10px; border-radius: 50%; position: absolute; bottom: 0; right: 0;",
     });
     avatarEl.appendChild(statusDot);
+    avatarEl.setAttribute("role", "button");
+    avatarEl.setAttribute("tabindex", "0");
+    avatarEl.setAttribute("aria-label", t("Open my profile", "Открыть мой профиль"));
 
-    const info = createElement("div", { class: "ub-info" });
+    const info = createElement("div", { class: "ub-info", role: "button", tabindex: "0", "data-testid": "user-bar-profile" });
+    info.setAttribute("aria-label", t("Open my profile", "Открыть мой профиль"));
     nameEl = createElement("span", { class: "ub-name", "data-testid": "user-bar-name" });
     statusEl = createElement("span", { class: "ub-status" });
     appendChildren(info, nameEl, statusEl);
+    for (const target of [avatarEl, info]) {
+      disposable.onEvent(target, "click", () => openSettings());
+      disposable.onEvent(target, "keydown", (event: Event) => {
+        const key = (event as KeyboardEvent).key;
+        if (key !== "Enter" && key !== " ") return;
+        event.preventDefault();
+        openSettings();
+      });
+    }
 
     const buttons = createElement("div", { class: "ub-controls" });
 

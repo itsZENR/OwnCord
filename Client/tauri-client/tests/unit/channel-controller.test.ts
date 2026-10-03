@@ -627,8 +627,10 @@ describe("createChannelController", () => {
 
       // Should use member status ("idle") over DM recipient status ("online")
       expect(mockUpdateChatHeaderForDm).toHaveBeenCalledWith(chatHeaderRefs, {
+        id: 5,
         username: "alice",
         status: "Idle",
+        avatar: "",
       });
     });
 
@@ -660,8 +662,10 @@ describe("createChannelController", () => {
       ctrl.mountChannel(42, "bob", "dm");
 
       expect(mockUpdateChatHeaderForDm).toHaveBeenCalledWith(chatHeaderRefs, {
+        id: 5,
         username: "bob",
         status: "Dnd",
+        avatar: "",
       });
     });
 

@@ -162,6 +162,7 @@ export function createSettingsOverlay(
   }
 
   function show(): void {
+    if (authenticated) setActiveTab("Account");
     root?.classList.add("open");
   }
 

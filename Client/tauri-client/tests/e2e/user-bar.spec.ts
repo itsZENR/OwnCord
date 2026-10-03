@@ -30,6 +30,12 @@ test.describe("User Bar", () => {
     await expect(avatar).toContainText("T");
   });
 
+  test("opens Account settings from the profile in the lower-left corner", async ({ page }) => {
+    await page.locator("[data-testid='user-bar-profile']").click();
+    await expect(page.locator("[data-testid='settings-overlay']")).toHaveClass(/open/);
+    await expect(page.locator(".settings-sidebar > .settings-nav-item.active")).toContainText("Account");
+  });
+
   test("user bar shows online status", async ({ page }) => {
     const status = page.locator("[data-testid='user-bar'] .ub-status");
     await expect(status).toBeVisible();

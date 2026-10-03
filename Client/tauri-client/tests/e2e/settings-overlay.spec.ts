@@ -127,6 +127,8 @@ test.describe("Settings — Account Tab", () => {
     await page.mouse.up();
     const after = await image.evaluate((node) => (node as HTMLElement).style.left);
     expect(after).not.toBe(before);
+    await page.mouse.wheel(0, -150);
+    await expect.poll(async () => Number(await slider.inputValue())).toBeGreaterThan(2);
 
     await dialog.locator("[data-testid='avatar-crop-cancel']").click();
     await expect(dialog).toHaveCount(0);

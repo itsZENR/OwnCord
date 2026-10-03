@@ -14,6 +14,7 @@ import { authStore } from "@stores/auth.store";
 import { activityStore } from "@stores/activity.store";
 import { createSessionTimer, refreshSessionTimers, getChannelSessionStart } from "@lib/voiceSessionTime";
 import { createVoiceRegalia } from "@components/VoiceRegalia";
+import { showUserProfile } from "@components/UserProfileDialog";
 import { t } from "@lib/i18n";
 
 export interface VoiceChannelOptions {
@@ -172,6 +173,20 @@ export function createVoiceChannel(options: VoiceChannelOptions): VoiceChannelRe
 
     const name = createElement("span", { class: "vu-name" }, username);
     row.appendChild(name);
+    for (const target of [avatarStack, name]) {
+      target.setAttribute("role", "button");
+      target.setAttribute("tabindex", "0");
+      target.addEventListener("click", (event) => {
+        event.stopPropagation();
+        showUserProfile(user.userId, { username });
+      }, { signal: ac.signal });
+      target.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        event.stopPropagation();
+        showUserProfile(user.userId, { username });
+      }, { signal: ac.signal });
+    }
     row.appendChild(createSessionTimer(user.joinedAt, "vu-session-time",
       t("Time in the current connection", "Время текущего подключения")));
 

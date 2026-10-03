@@ -275,7 +275,12 @@ export function createChannelController(
         recipientStatus = member?.status ?? dmChannel.recipient.status ?? "Offline";
       }
       const displayStatus = recipientStatus.charAt(0).toUpperCase() + recipientStatus.slice(1);
-      updateChatHeaderForDm(chatHeaderRefs, { username: channelName, status: displayStatus });
+      updateChatHeaderForDm(chatHeaderRefs, {
+        id: dmChannel?.recipient.id,
+        username: channelName,
+        status: displayStatus,
+        avatar: dmChannel?.recipient.avatar,
+      });
     } else if (chatHeaderRefs !== null) {
       updateChatHeaderForDm(chatHeaderRefs, null);
       setText(chatHeaderRefs.hashEl, channelType === "voice" ? "♪" : "#");

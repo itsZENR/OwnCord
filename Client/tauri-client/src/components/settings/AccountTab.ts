@@ -22,6 +22,7 @@ interface ProfileCardResult {
   readonly headerName: HTMLDivElement;
   readonly usernameValue: HTMLDivElement;
   readonly avatarLarge: HTMLDivElement;
+  readonly fieldsContainer: HTMLDivElement;
   readonly editUserProfileBtn: HTMLButtonElement;
   readonly editUsernameBtn: HTMLButtonElement;
 }
@@ -60,7 +61,7 @@ function buildProfileCard(username: string, avatar: string | null): ProfileCardR
 
   appendChildren(card, banner, avatarWrap, accountHeader, fieldsContainer);
 
-  return { card, headerName, usernameValue, avatarLarge, editUserProfileBtn, editUsernameBtn };
+  return { card, headerName, usernameValue, avatarLarge, fieldsContainer, editUserProfileBtn, editUsernameBtn };
 }
 
 // ---------------------------------------------------------------------------
@@ -603,7 +604,7 @@ export function buildAccountTab(
   const username = user?.username ?? "Unknown";
 
   // Profile card
-  const { card, headerName, usernameValue, avatarLarge, editUserProfileBtn, editUsernameBtn } =
+  const { card, headerName, usernameValue, avatarLarge, fieldsContainer, editUserProfileBtn, editUsernameBtn } =
     buildProfileCard(username, user?.avatar ?? null);
   section.appendChild(card);
 
@@ -622,6 +623,16 @@ export function buildAccountTab(
     removeAvatar.hidden = !user?.avatar;
     const avatarError = createElement("div", { class: "account-avatar-error", role: "status" });
     changeAvatar.addEventListener("click", () => avatarInput.click(), { signal });
+    avatarLarge.setAttribute("role", "button");
+    avatarLarge.setAttribute("tabindex", "0");
+    avatarLarge.setAttribute("aria-label", t("Change avatar", "Сменить аватар"));
+    avatarLarge.setAttribute("title", t("Change avatar", "Сменить аватар"));
+    avatarLarge.addEventListener("click", () => avatarInput.click(), { signal });
+    avatarLarge.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      avatarInput.click();
+    }, { signal });
     const updateAvatar = async (file: File | null): Promise<void> => {
       if (!options.onUpdateAvatar) return;
       changeAvatar.disabled = true;
@@ -654,18 +665,20 @@ export function buildAccountTab(
   section.appendChild(buildStatusSelector(options, signal));
 
   // Inline edit form
-  const editForm = createElement("div", { class: "setting-row", style: "display:none;margin-bottom:16px" });
+  const editForm = createElement("div", { class: "account-name-edit", style: "display:none", "data-testid": "profile-name-edit" });
   const editInput = createElement("input", { class: "form-input", type: "text", placeholder: t("New username", "Новое имя"), maxlength: String(MAX_USERNAME_LEN) });
   const saveBtn = createElement("button", { class: "ac-btn" }, t("Save", "Сохранить"));
   const cancelBtn = createElement("button", { class: "ac-btn", style: "background:var(--bg-active)" }, t("Cancel", "Отмена"));
   appendChildren(editForm, editInput, saveBtn, cancelBtn);
 
-  const usernameError = createElement("div", { style: "color:var(--red);font-size:13px;margin-top:4px" });
+  const usernameError = createElement("div", { class: "account-name-feedback", role: "status" });
   editForm.appendChild(usernameError);
 
   const openEditForm = () => {
     editForm.style.display = "flex";
     editInput.value = authStore.getState().user?.username ?? "";
+    usernameError.removeAttribute("data-state");
+    setText(usernameError, "");
     editInput.focus();
   };
 
@@ -674,6 +687,7 @@ export function buildAccountTab(
 
   cancelBtn.addEventListener("click", () => {
     editForm.style.display = "none";
+    usernameError.removeAttribute("data-state");
     setText(usernameError, "");
   }, { signal });
 
@@ -681,21 +695,29 @@ export function buildAccountTab(
     const newName = editInput.value.trim();
     const length = [...newName].length;
     if (length < 2 || length > MAX_USERNAME_LEN) {
+      usernameError.dataset.state = "error";
       setText(usernameError, t(`Username must be 2–${MAX_USERNAME_LEN} characters.`, `Имя должно содержать от 2 до ${MAX_USERNAME_LEN} символов.`));
       return;
     }
-    setText(usernameError, "");
+    usernameError.dataset.state = "pending";
+    setText(usernameError, t("Saving…", "Сохраняем…"));
+    saveBtn.disabled = true;
     void options.onUpdateProfile(newName).then(() => {
       setText(headerName, newName);
       setText(usernameValue, newName);
       setAvatarVisual(avatarLarge, newName, authStore.getState().user?.avatar ?? null);
-      editForm.style.display = "none";
+      editInput.value = newName;
+      usernameError.dataset.state = "success";
+      setText(usernameError, t("Username saved", "Имя сохранено"));
     }).catch((err: unknown) => {
+      usernameError.dataset.state = "error";
       setText(usernameError, err instanceof Error ? err.message : t("Failed to update username.", "Не удалось изменить имя."));
+    }).finally(() => {
+      saveBtn.disabled = false;
     });
   }, { signal });
 
-  section.appendChild(editForm);
+  fieldsContainer.appendChild(editForm);
 
   // Password section
   section.appendChild(buildPasswordSection(options, signal));

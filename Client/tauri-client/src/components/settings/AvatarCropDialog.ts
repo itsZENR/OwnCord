@@ -29,8 +29,8 @@ export async function chooseAvatarCrop(file: File, ownerSignal: AbortSignal): Pr
     });
     const title = createElement("h2", {}, t("Crop avatar", "Обрезка аватара"));
     const instructions = createElement("p", {}, t(
-      "Drag the photo to choose its center. The circle shows what others will see.",
-      "Перетащите фото, чтобы выбрать центр. В круге показано, что увидят другие.",
+      "Drag the photo to choose its center. Use the mouse wheel to zoom. The circle shows what others will see.",
+      "Перетащите фото, чтобы выбрать центр. Колёсико мыши меняет масштаб. В круге показано, что увидят другие.",
     ));
     const viewport = createElement("div", { class: "avatar-crop-viewport", "data-testid": "avatar-crop-viewport" });
     const image = createElement("img", { class: "avatar-crop-image", alt: "", src: imageUrl, draggable: "false" });
@@ -101,6 +101,20 @@ export async function chooseAvatarCrop(file: File, ownerSignal: AbortSignal): Pr
       zoom = Number(zoomSlider.value);
       render();
     }, { signal: listeners.signal });
+    viewport.addEventListener("wheel", (event) => {
+      event.preventDefault();
+      const nextZoom = Math.max(1, Math.min(3, Math.round(zoom * Math.exp(-event.deltaY * 0.0015) * 100) / 100));
+      if (nextZoom === zoom) return;
+      const rect = viewport.getBoundingClientRect();
+      const anchorX = Math.max(0, Math.min(PREVIEW_SIZE, event.clientX - rect.left));
+      const anchorY = Math.max(0, Math.min(PREVIEW_SIZE, event.clientY - rect.top));
+      const ratio = nextZoom / zoom;
+      offsetX = (anchorX - PREVIEW_SIZE / 2) * (1 - ratio) + offsetX * ratio;
+      offsetY = (anchorY - PREVIEW_SIZE / 2) * (1 - ratio) + offsetY * ratio;
+      zoom = nextZoom;
+      zoomSlider.value = String(zoom);
+      render();
+    }, { passive: false, signal: listeners.signal });
     viewport.addEventListener("pointerdown", (event) => {
       if (event.button !== 0) return;
       event.preventDefault();
