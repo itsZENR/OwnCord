@@ -58,6 +58,7 @@ describe("AudioElements", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockLoadPref.mockImplementation((_key: string, defaultVal: unknown) => defaultVal);
     elements = new AudioElements();
   });
 
@@ -201,6 +202,26 @@ describe("AudioElements", () => {
   });
 
   describe("screenshare audio", () => {
+    it("applies the saved screenshare level when a track is attached", () => {
+      mockLoadPref.mockImplementation((key: string, defaultVal: unknown) =>
+        key === "screenshareVolume_42" ? 25 : defaultVal);
+      const { track, audioEl } = createMockTrack("audio", "screen-42");
+      elements.handleTrackSubscribedAudio(track as any, { source: "screenShareAudio" } as any,
+        { identity: "user-42" } as any);
+      expect(audioEl.volume).toBe(0.25);
+    });
+
+    it("adjusts and saves screenshare volume separately from the master volume", () => {
+      const audioEl = document.createElement("audio");
+      (elements as any).screenshareAudioElements = new Map([[42, new Set([audioEl])]]);
+      elements.setOutputVolume(50);
+      elements.setScreenshareAudioVolume(42, 0.6);
+      expect(audioEl.volume).toBe(0.3);
+      expect(mockSavePref).toHaveBeenCalledWith("screenshareVolume_42", 60);
+      elements.setOutputVolume(100);
+      expect(audioEl.volume).toBe(0.6);
+    });
+
     it("setScreenshareAudioVolume does not throw for unknown userId", () => {
       expect(() => elements.setScreenshareAudioVolume(999, 0.5)).not.toThrow();
     });

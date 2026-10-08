@@ -6,10 +6,18 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const mockMuteScreenshareAudio = vi.fn();
 const mockSetUserVolume = vi.fn();
+const mockSetScreenshareAudioVolume = vi.fn();
+const mockGetScreenshareAudioVolume = vi.fn(() => 1);
+const mockGetScreenshareAudioMuted = vi.fn(() => false);
+const mockGetUserVolume = vi.fn(() => 100);
 
 vi.mock("@lib/livekitSession", () => ({
   muteScreenshareAudio: (...args: unknown[]) => mockMuteScreenshareAudio(...args),
   setUserVolume: (...args: unknown[]) => mockSetUserVolume(...args),
+  setScreenshareAudioVolume: (...args: unknown[]) => mockSetScreenshareAudioVolume(...args),
+  getScreenshareAudioVolume: () => mockGetScreenshareAudioVolume(),
+  getScreenshareAudioMuted: () => mockGetScreenshareAudioMuted(),
+  getUserVolume: () => mockGetUserVolume(),
 }));
 
 // ---------------------------------------------------------------------------
@@ -51,6 +59,9 @@ describe("VideoGrid", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetScreenshareAudioVolume.mockReturnValue(1);
+    mockGetScreenshareAudioMuted.mockReturnValue(false);
+    mockGetUserVolume.mockReturnValue(100);
     // ResizeObserver is not available in JSDOM
     globalThis.ResizeObserver ??= class {
       observe(): void { /* noop */ }
@@ -332,6 +343,37 @@ describe("VideoGrid", () => {
       slider.value = "100";
       slider.dispatchEvent(new Event("input"));
       expect(mockMuteScreenshareAudio).toHaveBeenCalledWith(88, false);
+
+      slider.value = "45";
+      slider.dispatchEvent(new Event("input"));
+      expect(mockSetScreenshareAudioVolume).toHaveBeenCalledWith(88, 0.45);
+      expect(container.querySelector(".tile-volume-value")?.textContent).toBe("45%");
+    });
+
+    it("restores the saved screenshare volume when the tile opens", () => {
+      mockGetScreenshareAudioVolume.mockReturnValue(0.35);
+      grid.addStream(88, "screen", fakeStream(), makeTileConfig({ audioUserId: 88, isScreenshare: true }));
+      expect((container.querySelector(".tile-volume-slider") as HTMLInputElement).value).toBe("35");
+    });
+
+    it("offers fullscreen for screenshare tiles including the local preview", () => {
+      grid.addStream(88, "my screen", fakeStream(), makeTileConfig({ isSelf: true, isScreenshare: true }));
+      const cell = container.querySelector(".video-cell") as HTMLDivElement;
+      const requestFullscreen = vi.fn().mockResolvedValue(undefined);
+      Object.defineProperty(cell, "requestFullscreen", { configurable: true, value: requestFullscreen });
+      (cell.querySelector(".tile-fullscreen-btn") as HTMLButtonElement).click();
+      expect(requestFullscreen).toHaveBeenCalledOnce();
+      expect(container.querySelector(".video-tile-overlay")).toBeNull();
+    });
+
+    it("uses an in-app fullscreen view when the browser API is unavailable", () => {
+      grid.addStream(88, "screen", fakeStream(), makeTileConfig({ isScreenshare: true }));
+      const cell = container.querySelector(".video-cell") as HTMLDivElement;
+      Object.defineProperty(cell, "requestFullscreen", { configurable: true, value: undefined });
+      (cell.querySelector(".tile-fullscreen-btn") as HTMLButtonElement).click();
+      expect(cell.classList.contains("fullscreen-fallback")).toBe(true);
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+      expect(cell.classList.contains("fullscreen-fallback")).toBe(false);
     });
 
     it("mute button unmutes with previous volume when currentVolume was non-zero", () => {

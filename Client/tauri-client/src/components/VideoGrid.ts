@@ -5,7 +5,11 @@
 
 import { createElement, appendChildren } from "@lib/dom";
 import { createIcon } from "@lib/icons";
-import { muteScreenshareAudio, setUserVolume } from "@lib/livekitSession";
+import { t } from "@lib/i18n";
+import {
+  getScreenshareAudioMuted, getScreenshareAudioVolume, getUserVolume,
+  muteScreenshareAudio, setScreenshareAudioVolume, setUserVolume,
+} from "@lib/livekitSession";
 import type { MountableComponent } from "@lib/safe-render";
 
 export interface TileConfig {
@@ -93,7 +97,7 @@ export function computeGridLayout(
 
 export function createVideoGrid(): VideoGridComponent {
   let root: HTMLDivElement | null = null;
-  const cells = new Map<number, { el: HTMLDivElement; config?: TileConfig }>();
+  const cells = new Map<number, { el: HTMLDivElement; config?: TileConfig; events: AbortController }>();
   let focusedTileId: number | null = null;
   let resizeObserver: ResizeObserver | null = null;
   let resizeRafId = 0;
@@ -230,56 +234,116 @@ export function createVideoGrid(): VideoGridComponent {
       class: config?.isScreenshare ? "video-cell screenshare" : "video-cell",
       "data-user-id": String(userId),
     });
+    const events = new AbortController();
     appendChildren(cell, video, label);
 
     cell.addEventListener("click", (e) => {
-      // Don't switch focus if clicking the mute button
-      if ((e.target as Element).closest(".tile-mute-btn")) return;
+      if ((e.target as Element).closest(".video-tile-overlay, .tile-fullscreen-btn")) return;
       if (focusedTileId !== null && focusedTileId !== userId) {
         focusedTileId = userId;
         rebuildFocusLayout();
       }
-    });
+    }, { signal: events.signal });
+
+    if (config?.isScreenshare) {
+      const fullscreenButton = createElement("button", {
+        type: "button", class: "tile-fullscreen-btn", "data-testid": `tile-fullscreen-${userId}`,
+      });
+      const isFullscreen = (): boolean =>
+        document.fullscreenElement === cell || cell.classList.contains("fullscreen-fallback");
+      const syncFullscreenButton = (): void => {
+        if (events.signal.aborted) return;
+        const active = isFullscreen();
+        const description = active
+          ? t("Exit fullscreen", "Выйти из полноэкранного режима")
+          : t("Fullscreen", "На весь экран");
+        setButtonIcon(fullscreenButton, createIcon(active ? "minimize" : "maximize", 17));
+        fullscreenButton.setAttribute("aria-label", description);
+        fullscreenButton.title = description;
+      };
+      const openFallbackFullscreen = (): void => {
+        if (events.signal.aborted) return;
+        cell.classList.add("fullscreen-fallback");
+        syncFullscreenButton();
+      };
+      fullscreenButton.addEventListener("click", (event) => {
+        event.stopPropagation();
+        if (cell.classList.contains("fullscreen-fallback")) {
+          cell.classList.remove("fullscreen-fallback");
+          syncFullscreenButton();
+        } else if (document.fullscreenElement === cell) {
+          void document.exitFullscreen().catch(() => {});
+        } else if (typeof cell.requestFullscreen === "function") {
+          try {
+            void cell.requestFullscreen().then(syncFullscreenButton).catch(openFallbackFullscreen);
+          } catch {
+            openFallbackFullscreen();
+          }
+        } else {
+          openFallbackFullscreen();
+        }
+      }, { signal: events.signal });
+      document.addEventListener("fullscreenchange", syncFullscreenButton, { signal: events.signal });
+      document.addEventListener("keydown", (event) => {
+        if (event.key !== "Escape" || !cell.classList.contains("fullscreen-fallback")) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        cell.classList.remove("fullscreen-fallback");
+        syncFullscreenButton();
+      }, { capture: true, signal: events.signal });
+      syncFullscreenButton();
+      cell.appendChild(fullscreenButton);
+    }
 
     // Add audio control overlay for remote tiles
     if (config !== undefined && !config.isSelf) {
-      let muted = false;
-      let currentVolume = 100;
+      let currentVolume = config.isScreenshare
+        ? Math.round(getScreenshareAudioVolume(config.audioUserId) * 100)
+        : getUserVolume(config.audioUserId);
+      let muted = config.isScreenshare
+        ? getScreenshareAudioMuted(config.audioUserId) || currentVolume === 0
+        : currentVolume === 0;
 
       const overlay = createElement("div", { class: "video-tile-overlay" });
+      overlay.addEventListener("click", (event) => event.stopPropagation(), { signal: events.signal });
 
       // Volume slider
       const volumeSlider = createElement("input", {
         type: "range",
         min: "0",
-        max: "200",
-        value: "100",
+        max: config.isScreenshare ? "100" : "200",
+        value: muted ? "0" : String(currentVolume),
         class: "tile-volume-slider",
-        "aria-label": "Volume",
+        "aria-label": config.isScreenshare
+          ? t("Screenshare volume", "Громкость трансляции")
+          : t("Volume", "Громкость"),
       });
+      const volumeValue = createElement("span", { class: "tile-volume-value" });
 
-      volumeSlider.addEventListener("input", () => {
-        currentVolume = Number(volumeSlider.value);
-        const wasMuted = muted;
-        muted = currentVolume === 0;
-        if (config.isScreenshare) {
-          muteScreenshareAudio(config.audioUserId, muted);
-        } else {
-          setUserVolume(config.audioUserId, currentVolume);
-        }
+      const muteBtn = createElement("button", {
+        class: "tile-mute-btn", type: "button",
+      });
+      const syncVolumeControls = (): void => {
+        const shownVolume = muted ? 0 : currentVolume;
+        volumeSlider.value = String(shownVolume);
+        volumeValue.textContent = `${shownVolume}%`;
         setButtonIcon(muteBtn, muted ? volumeXIcon() : volumeIcon());
         muteBtn.setAttribute("aria-label", muted ? "Unmute" : "Mute");
-        if (muted !== wasMuted) {
-          overlay.classList.toggle("muted", muted);
-        }
-      });
+        overlay.classList.toggle("muted", muted);
+      };
 
-      // Mute button
-      const muteBtn = createElement("button", {
-        class: "tile-mute-btn",
-        "aria-label": "Mute",
-      });
-      muteBtn.appendChild(volumeIcon());
+      volumeSlider.addEventListener("input", () => {
+        const selected = Number(volumeSlider.value);
+        if (selected > 0) currentVolume = selected;
+        muted = selected === 0;
+        if (config.isScreenshare) {
+          if (selected > 0) setScreenshareAudioVolume(config.audioUserId, selected / 100);
+          muteScreenshareAudio(config.audioUserId, muted);
+        } else {
+          setUserVolume(config.audioUserId, selected);
+        }
+        syncVolumeControls();
+      }, { signal: events.signal });
 
       muteBtn.addEventListener("click", () => {
         muted = !muted;
@@ -289,27 +353,26 @@ export function createVideoGrid(): VideoGridComponent {
           } else {
             setUserVolume(config.audioUserId, 0);
           }
-          volumeSlider.value = "0";
         } else {
           if (currentVolume === 0) currentVolume = 100;
           if (config.isScreenshare) {
+            setScreenshareAudioVolume(config.audioUserId, currentVolume / 100);
             muteScreenshareAudio(config.audioUserId, false);
           } else {
             setUserVolume(config.audioUserId, currentVolume);
           }
-          volumeSlider.value = String(currentVolume);
         }
-        setButtonIcon(muteBtn, muted ? volumeXIcon() : volumeIcon());
-        muteBtn.setAttribute("aria-label", muted ? "Unmute" : "Mute");
-        overlay.classList.toggle("muted", muted);
-      });
+        syncVolumeControls();
+      }, { signal: events.signal });
 
       overlay.appendChild(volumeSlider);
+      overlay.appendChild(volumeValue);
       overlay.appendChild(muteBtn);
       cell.appendChild(overlay);
+      syncVolumeControls();
     }
 
-    cells.set(userId, { el: cell, config });
+    cells.set(userId, { el: cell, config, events });
     root.appendChild(cell);
     if (focusedTileId !== null) {
       rebuildFocusLayout();
@@ -321,6 +384,8 @@ export function createVideoGrid(): VideoGridComponent {
   function removeStream(userId: number): void {
     const entry = cells.get(userId);
     if (entry === undefined) return;
+    entry.events.abort();
+    if (document.fullscreenElement === entry.el) void document.exitFullscreen().catch(() => {});
 
     const video = entry.el.querySelector("video");
     if (video !== null) video.srcObject = null;
@@ -368,6 +433,8 @@ export function createVideoGrid(): VideoGridComponent {
     }
 
     for (const [, entry] of cells) {
+      entry.events.abort();
+      if (document.fullscreenElement === entry.el) void document.exitFullscreen().catch(() => {});
       const video = entry.el.querySelector("video");
       if (video !== null) video.srcObject = null;
     }

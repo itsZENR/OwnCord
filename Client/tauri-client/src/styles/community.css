@@ -78,7 +78,7 @@
   width: var(--avatar-size); display: flex; flex-direction: column;
   align-items: center; gap: 3px; z-index: 1;
 }
-.message .msg-avatar-stack .msg-avatar { position: relative; flex: none; }
+.message .msg-avatar-stack .msg-avatar { position: relative; left: 0; top: 0; flex: none; }
 .message.grouped .msg-avatar-stack { display: none; }
 .voice-regalia {
   display: inline-flex; align-items: center; justify-content: center;
