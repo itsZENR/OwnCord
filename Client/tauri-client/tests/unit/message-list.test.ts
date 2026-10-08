@@ -13,6 +13,7 @@ import { createMessageList } from "@components/MessageList";
 import type { MessageListOptions } from "@components/MessageList";
 import { messagesStore } from "@stores/messages.store";
 import { membersStore } from "@stores/members.store";
+import { activityStore } from "@stores/activity.store";
 import type { Message } from "@stores/messages.store";
 
 function resetStores(): void {
@@ -25,6 +26,11 @@ function resetStores(): void {
   membersStore.setState(() => ({
     members: new Map(),
     typingUsers: new Map(),
+  }));
+  activityStore.setState(() => ({
+    loaded: false,
+    error: null,
+    members: new Map(),
   }));
 }
 
@@ -307,6 +313,26 @@ describe("MessageList", () => {
     // Both messages should render; the second should be grouped (class "message grouped")
     const grouped = content!.querySelectorAll(".message.grouped");
     expect(grouped.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("reserves space for regalia before a grouped message hover time", () => {
+    activityStore.setState(() => ({
+      loaded: true,
+      error: null,
+      members: new Map([[1, { user_id: 1, sessions: 1, total_seconds: 3600 }]]),
+    }));
+    setMessages(1, [
+      makeMessage({ id: 1, timestamp: "2024-01-15T12:00:00Z" }),
+      makeMessage({ id: 2, timestamp: "2024-01-15T12:01:00Z" }),
+    ]);
+    msgList.mount(container);
+
+    const first = container.querySelector(".message:not(.grouped)");
+    const second = container.querySelector(".message.grouped");
+    expect(first?.classList.contains("has-regalia")).toBe(true);
+    expect(first?.querySelector(".voice-regalia")).not.toBeNull();
+    expect(second?.classList.contains("has-regalia")).toBe(false);
+    expect(second?.querySelector(".msg-hover-time")).not.toBeNull();
   });
 
   it("destroys cleanly without errors even with loaded messages", () => {

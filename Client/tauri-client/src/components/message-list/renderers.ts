@@ -177,7 +177,13 @@ export function renderMessage(
   const avatarStack = createElement("div", { class: "msg-avatar-stack" });
   avatarStack.appendChild(avatar);
   const regalia = createVoiceRegalia(msg.user.id);
-  if (regalia !== null) avatarStack.appendChild(regalia);
+  if (regalia !== null) {
+    avatarStack.appendChild(regalia);
+    // The avatar stack is absolutely positioned, so reserve its height in
+    // the message row. Otherwise a grouped message below can place its
+    // hover timestamp on top of the regalia badge.
+    if (!isGrouped) el.classList.add("has-regalia");
+  }
   el.appendChild(avatarStack);
 
   if (isGrouped) {

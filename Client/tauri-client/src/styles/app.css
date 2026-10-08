@@ -451,6 +451,9 @@
 .message:first-child, .msg-day-divider + .message { margin-top: 0; }
 .message:hover { background: var(--bg-modifier-hover); }
 .message.grouped { min-height: 1.375rem; margin-top: var(--message-inline-spacing); }
+/* The regalia sits below an absolutely positioned avatar. Keep the next
+   grouped row below the complete stack so its hover time cannot overlap it. */
+.message.has-regalia { min-height: calc(var(--avatar-size) + 18px); }
 .message .msg-avatar {
   position: absolute; left: var(--avatar-offset-left); top: 4px;
   width: var(--avatar-size); height: var(--avatar-size); border-radius: var(--radius-circle);
